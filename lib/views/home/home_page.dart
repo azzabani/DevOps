@@ -5,7 +5,8 @@ import 'package:flutter_booking/services/auth_service.dart';
 import 'package:intl/intl.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final void Function(int index)? onNavigate;
+  const HomePage({super.key, this.onNavigate});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -312,7 +313,13 @@ class _HomePageState extends State<HomePage> {
                 icon: Icons.search,
                 label: 'Trouver une\nressource',
                 color: const Color(0xFF2563EB),
-                onTap: () => Navigator.pushNamed(context, '/resources'),
+                onTap: () {
+                  if (widget.onNavigate != null) {
+                    widget.onNavigate!(1);
+                  } else {
+                    Navigator.pushNamed(context, '/resources');
+                  }
+                },
               ),
             ),
             const SizedBox(width: 12),
@@ -321,7 +328,13 @@ class _HomePageState extends State<HomePage> {
                 icon: Icons.calendar_month,
                 label: 'Voir le\ncalendrier',
                 color: const Color(0xFF7C3AED),
-                onTap: () => Navigator.pushNamed(context, '/calendar'),
+                onTap: () {
+                  if (widget.onNavigate != null) {
+                    widget.onNavigate!(2);
+                  } else {
+                    Navigator.pushNamed(context, '/calendar');
+                  }
+                },
               ),
             ),
             const SizedBox(width: 12),
@@ -330,7 +343,13 @@ class _HomePageState extends State<HomePage> {
                 icon: Icons.bookmark,
                 label: 'Mes\nréservations',
                 color: const Color(0xFF059669),
-                onTap: () => Navigator.pushNamed(context, '/my_reservations'),
+                onTap: () {
+                  if (widget.onNavigate != null) {
+                    widget.onNavigate!(3);
+                  } else {
+                    Navigator.pushNamed(context, '/my_reservations');
+                  }
+                },
               ),
             ),
           ],
@@ -351,10 +370,15 @@ class _HomePageState extends State<HomePage> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             TextButton(
-              onPressed: () => Navigator.pushNamed(context, '/my_reservations'),
+              onPressed: () {
+                if (widget.onNavigate != null) {
+                  widget.onNavigate!(3);
+                } else {
+                  Navigator.pushNamed(context, '/my_reservations');
+                }
+              },
               child: const Text('Voir tout'),
-            ),
-          ],
+            ),          ],
         ),
         const SizedBox(height: 8),
         if (_upcomingReservations.isEmpty)
@@ -376,7 +400,13 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton(
-                  onPressed: () => Navigator.pushNamed(context, '/resources'),
+                  onPressed: () {
+                    if (widget.onNavigate != null) {
+                      widget.onNavigate!(1);
+                    } else {
+                      Navigator.pushNamed(context, '/resources');
+                    }
+                  },
                   child: const Text('Réserver maintenant'),
                 ),
               ],

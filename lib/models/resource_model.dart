@@ -37,6 +37,17 @@ class ResourceModel {
     }
   }
 
+  // Convertir vers Firestore
+  Map<String, dynamic> toFirestore() {
+    return {
+      'name': name,
+      'description': description,
+      'image': image,
+      'capacity': capacity,
+      'category': category,
+    };
+  }
+
   // Convertir depuis Firestore
   factory ResourceModel.fromFirestore(Map<String, dynamic> data, String id) {
     return ResourceModel(

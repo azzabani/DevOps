@@ -18,6 +18,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   int _pendingCount = 0;
   int _confirmedCount = 0;
   int _cancelledCount = 0;
+  int _rejectedCount = 0;
   int _totalResources = 0;
   int _totalUsers = 0;
 
@@ -54,12 +55,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       _firestore.collection('users').get(),
     ]);
 
-    int pending = 0, confirmed = 0, cancelled = 0;
+    int pending = 0, confirmed = 0, cancelled = 0, rejected = 0;
     for (final doc in results[0].docs) {
       final status = (doc.data() as Map<String, dynamic>)['status'] ?? '';
       if (status == 'pending') pending++;
       else if (status == 'confirmed') confirmed++;
-      else if (status == 'cancelled' || status == 'rejected') cancelled++;
+      else if (status == 'cancelled') cancelled++;
+      else if (status == 'rejected') rejected++;
     }
 
     if (mounted) {
@@ -68,6 +70,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         _pendingCount = pending;
         _confirmedCount = confirmed;
         _cancelledCount = cancelled;
+        _rejectedCount = rejected;
         _totalResources = results[1].docs.length;
         _totalUsers = results[2].docs.length;
       });
@@ -231,6 +234,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             const Color(0xFF10B981)),
         _StatTile('Annulées', '$_cancelledCount', Icons.cancel,
             const Color(0xFFEF4444)),
+        _StatTile('Rejetées', '$_rejectedCount', Icons.block,
+            const Color(0xFFDC2626)),
         _StatTile('Ressources', '$_totalResources', Icons.inventory_2,
             const Color(0xFF7C3AED)),
         _StatTile('Utilisateurs', '$_totalUsers', Icons.people,
@@ -325,8 +330,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           _StatusBar('Confirmées', _confirmedCount, total,
               const Color(0xFF10B981)),
           const SizedBox(height: 10),
-          _StatusBar('Annulées / Rejetées', _cancelledCount, total,
+          _StatusBar('Annulées', _cancelledCount, total,
               const Color(0xFFEF4444)),
+          const SizedBox(height: 10),
+          _StatusBar('Rejetées', _rejectedCount, total,
+              const Color(0xFFDC2626)),
         ],
       ),
     );

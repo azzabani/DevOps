@@ -1,5 +1,6 @@
 // lib/services/notification_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/notification_model.dart';
 
 class NotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -9,7 +10,7 @@ class NotificationService {
     required String userId,
     required String title,
     required String message,
-    required String type, // 'reservation', 'validation', 'cancellation'
+    required String type, // 'reservation_created' | 'confirmed' | 'rejected' | 'cancelled'
     required String reservationId,
   }) async {
     try {
@@ -28,14 +29,19 @@ class NotificationService {
     }
   }
 
-  // Récupérer les notifications non lues d'un utilisateur
-  Stream<List<QueryDocumentSnapshot>> getUserNotifications(String userId) {
+  // Récupérer les notifications d'un utilisateur sous forme de Stream<List<NotificationModel>>
+  Stream<List<NotificationModel>> getUserNotifications(String userId) {
     return _firestore
         .collection('notifications')
         .where('userId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs);
+        .map((snapshot) => snapshot.docs
+            .map((doc) => NotificationModel.fromFirestore(
+                  doc.data() as Map<String, dynamic>,
+                  doc.id,
+                ))
+            .toList());
   }
 
   // Marquer une notification comme lue
@@ -43,6 +49,23 @@ class NotificationService {
     await _firestore.collection('notifications').doc(notificationId).update({
       'isRead': true,
     });
+  }
+
+  // Marquer toutes les notifications non lues d'un utilisateur comme lues (batch)
+  Future<void> markAllAsRead(String userId) async {
+    final snapshot = await _firestore
+        .collection('notifications')
+        .where('userId', isEqualTo: userId)
+        .where('isRead', isEqualTo: false)
+        .get();
+
+    if (snapshot.docs.isEmpty) return;
+
+    final batch = _firestore.batch();
+    for (final doc in snapshot.docs) {
+      batch.update(doc.reference, {'isRead': true});
+    }
+    await batch.commit();
   }
 
   // Compter les notifications non lues

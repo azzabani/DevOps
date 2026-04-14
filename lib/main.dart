@@ -18,7 +18,10 @@ import 'views/home/main_shell.dart';
 import 'views/resources/resources_page.dart';
 import 'views/resources/resource_detail_page.dart';
 import 'views/calendar/booking_page.dart';
+import 'views/calendar/calendar_page.dart';
+import 'views/calendar/my_reservations_page.dart';
 import 'views/calendar/edit_reservation_page.dart';
+import 'views/notifications/notifications_page.dart';
 import 'views/admin/admin_page.dart';
 import 'models/resource_model.dart';
 import 'models/reservation_model.dart';
@@ -88,6 +91,15 @@ class MyApp extends StatelessWidget {
               return MaterialPageRoute(builder: (_) => const MainShell());
             case '/resources':
               return MaterialPageRoute(builder: (_) => const ResourcesPage());
+            case '/calendar':
+              return MaterialPageRoute(
+                builder: (_) => const MainShell(initialIndex: 2));
+            case '/my_reservations':
+              return MaterialPageRoute(
+                builder: (_) => const MainShell(initialIndex: 3));
+            case '/notifications':
+              return MaterialPageRoute(
+                builder: (_) => const MainShell(initialIndex: 4));
             case '/resource_detail':
               final resource = settings.arguments as ResourceModel;
               return MaterialPageRoute(

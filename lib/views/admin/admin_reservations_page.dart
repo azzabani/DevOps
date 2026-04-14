@@ -2,6 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_booking/providers/auth_provider.dart';
+import 'package:flutter_booking/services/reservation_service.dart';
+import 'package:flutter_booking/services/notification_service.dart';
 
 class AdminReservationsPage extends StatefulWidget {
   const AdminReservationsPage({super.key});
@@ -14,20 +18,46 @@ class _AdminReservationsPageState extends State<AdminReservationsPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String _filter = 'pending'; // pending, confirmed, all
 
-  Future<void> _updateReservationStatus(String reservationId, String status) async {
+  Future<void> _updateReservationStatus(
+      String reservationId, String status, Map<String, dynamic> reservationData) async {
     try {
-      await _firestore.collection('reservations').doc(reservationId).update({
-        'status': status,
-        'validatedAt': FieldValue.serverTimestamp(),
-      });
-      
+      final validatedByName =
+          Provider.of<UserAuthProvider>(context, listen: false).currentUser?.name ?? 'Admin';
+
+      await ReservationService().validateReservation(
+        reservationId,
+        status,
+        validatedBy: validatedByName,
+      );
+
+      final userId = reservationData['userId'] as String? ?? '';
+      if (userId.isNotEmpty) {
+        if (status == 'confirmed') {
+          await NotificationService().createNotification(
+            userId: userId,
+            title: 'Réservation confirmée',
+            message: 'Votre réservation a été confirmée par $validatedByName',
+            type: 'confirmed',
+            reservationId: reservationId,
+          );
+        } else if (status == 'rejected') {
+          await NotificationService().createNotification(
+            userId: userId,
+            title: 'Réservation rejetée',
+            message: 'Votre réservation a été rejetée par $validatedByName',
+            type: 'rejected',
+            reservationId: reservationId,
+          );
+        }
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              status == 'confirmed' 
-                ? 'Réservation confirmée avec succès' 
-                : 'Réservation rejetée',
+              status == 'confirmed'
+                  ? 'Réservation confirmée avec succès'
+                  : 'Réservation rejetée',
             ),
             backgroundColor: status == 'confirmed' ? Colors.green : Colors.orange,
             duration: const Duration(seconds: 2),
@@ -112,7 +142,7 @@ class _AdminReservationsPageState extends State<AdminReservationsPage> {
             ],
           ),
         ),
-        
+
         // Liste des réservations
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
@@ -123,11 +153,7 @@ class _AdminReservationsPageState extends State<AdminReservationsPage> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 60,
-                        color: Colors.red.shade300,
-                      ),
+                      Icon(Icons.error_outline, size: 60, color: Colors.red.shade300),
                       const SizedBox(height: 16),
                       Text(
                         'Erreur: ${snapshot.error}',
@@ -137,23 +163,19 @@ class _AdminReservationsPageState extends State<AdminReservationsPage> {
                   ),
                 );
               }
-              
+
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-              
+
               final reservations = snapshot.data!.docs;
-              
+
               if (reservations.isEmpty) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.calendar_today,
-                        size: 60,
-                        color: Colors.grey.shade400,
-                      ),
+                      Icon(Icons.calendar_today, size: 60, color: Colors.grey.shade400),
                       const SizedBox(height: 16),
                       Text(
                         _filter == 'pending'
@@ -161,27 +183,25 @@ class _AdminReservationsPageState extends State<AdminReservationsPage> {
                             : _filter == 'confirmed'
                                 ? 'Aucune réservation confirmée'
                                 : 'Aucune réservation',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey.shade600,
-                        ),
+                        style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
                       ),
                     ],
                   ),
                 );
               }
-              
+
               return ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: reservations.length,
                 itemBuilder: (context, index) {
                   final doc = reservations[index];
                   final data = doc.data() as Map<String, dynamic>;
-                  
+
                   DateTime startTime = (data['startTime'] as Timestamp).toDate();
                   DateTime endTime = (data['endTime'] as Timestamp).toDate();
                   String status = data['status'] ?? 'pending';
-                  
+                  String? validatedBy = data['validatedBy'] as String?;
+
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     elevation: 2,
@@ -214,8 +234,10 @@ class _AdminReservationsPageState extends State<AdminReservationsPage> {
                                           .doc(data['resourceId'])
                                           .get(),
                                       builder: (context, resourceSnapshot) {
-                                        if (resourceSnapshot.hasData && resourceSnapshot.data!.exists) {
-                                          final resourceData = resourceSnapshot.data!.data() as Map<String, dynamic>;
+                                        if (resourceSnapshot.hasData &&
+                                            resourceSnapshot.data!.exists) {
+                                          final resourceData = resourceSnapshot.data!.data()
+                                              as Map<String, dynamic>;
                                           return Text(
                                             resourceData['name'] ?? 'Ressource',
                                             style: TextStyle(
@@ -259,40 +281,51 @@ class _AdminReservationsPageState extends State<AdminReservationsPage> {
                           const SizedBox(height: 12),
                           Row(
                             children: [
-                              Icon(
-                                Icons.access_time,
-                                size: 14,
-                                color: Colors.grey.shade600,
-                              ),
+                              Icon(Icons.access_time, size: 14, color: Colors.grey.shade600),
                               const SizedBox(width: 4),
                               Text(
                                 '${DateFormat('dd/MM/yyyy HH:mm').format(startTime)} - ${DateFormat('HH:mm').format(endTime)}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey.shade600,
-                                ),
+                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                               ),
                             ],
                           ),
-                          if (data['notes'] != null && data['notes'].toString().isNotEmpty)
+                          if (data['notes'] != null &&
+                              data['notes'].toString().isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 8),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(
-                                    Icons.note,
-                                    size: 14,
-                                    color: Colors.grey.shade500,
-                                  ),
+                                  Icon(Icons.note, size: 14, color: Colors.grey.shade500),
                                   const SizedBox(width: 4),
                                   Expanded(
                                     child: Text(
                                       data['notes'],
                                       style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey.shade600,
-                                      ),
+                                          fontSize: 12, color: Colors.grey.shade600),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          // Afficher validatedBy pour confirmed et rejected
+                          if ((status == 'confirmed' || status == 'rejected') &&
+                              validatedBy != null &&
+                              validatedBy.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.verified_user,
+                                      size: 14,
+                                      color: _getStatusColor(status).withOpacity(0.8)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Par : $validatedBy',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: _getStatusColor(status).withOpacity(0.8),
+                                      fontStyle: FontStyle.italic,
                                     ),
                                   ),
                                 ],
@@ -305,7 +338,7 @@ class _AdminReservationsPageState extends State<AdminReservationsPage> {
                                 Expanded(
                                   child: ElevatedButton.icon(
                                     onPressed: () {
-                                      _updateReservationStatus(doc.id, 'confirmed');
+                                      _updateReservationStatus(doc.id, 'confirmed', data);
                                     },
                                     icon: const Icon(Icons.check, size: 16),
                                     label: const Text('Confirmer'),
@@ -323,7 +356,7 @@ class _AdminReservationsPageState extends State<AdminReservationsPage> {
                                 Expanded(
                                   child: ElevatedButton.icon(
                                     onPressed: () {
-                                      _updateReservationStatus(doc.id, 'rejected');
+                                      _updateReservationStatus(doc.id, 'rejected', data);
                                     },
                                     icon: const Icon(Icons.close, size: 16),
                                     label: const Text('Rejeter'),
@@ -420,14 +453,13 @@ class _AdminReservationsPageState extends State<AdminReservationsPage> {
     Query query = _firestore
         .collection('reservations')
         .orderBy('createdAt', descending: true);
-    
+
     if (_filter == 'pending') {
       query = query.where('status', isEqualTo: 'pending');
     } else if (_filter == 'confirmed') {
       query = query.where('status', isEqualTo: 'confirmed');
     }
-    // 'all' ne nécessite pas de filtre supplémentaire
-    
+
     return query.snapshots();
   }
 }

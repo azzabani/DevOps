@@ -34,10 +34,22 @@ class ReservationService {
     );
   }
 
+  // ─── Détection de chevauchement (pure) ───────────────────────────────────
+
+  static bool overlaps(
+    DateTime newStart,
+    DateTime newEnd,
+    DateTime existingStart,
+    DateTime existingEnd,
+  ) {
+    return newStart.isBefore(existingEnd) && newEnd.isAfter(existingStart);
+  }
+
   // ─── Créer une réservation ────────────────────────────────────────────────
 
   Future<bool> createReservation({
     required String resourceId,
+    required String resourceName,
     required String userId,
     required String userName,
     required DateTime startTime,
@@ -50,6 +62,7 @@ class ReservationService {
 
       await _firestore.collection('reservations').add({
         'resourceId': resourceId,
+        'resourceName': resourceName,
         'userId': userId,
         'userName': userName,
         'startTime': Timestamp.fromDate(startTime),
@@ -71,14 +84,19 @@ class ReservationService {
   Future<bool> checkConflict(
     String resourceId,
     DateTime startTime,
-    DateTime endTime,
-  ) async {
+    DateTime endTime, {
+    String? excludeReservationId,
+  }) async {
     final snapshot = await _firestore
         .collection('reservations')
         .where('resourceId', isEqualTo: resourceId)
         .get();
 
     for (final doc in snapshot.docs) {
+      if (excludeReservationId != null && doc.id == excludeReservationId) {
+        continue;
+      }
+
       final data = doc.data();
       final status = data['status'] as String? ?? '';
 
@@ -87,7 +105,7 @@ class ReservationService {
       final existingStart = (data['startTime'] as Timestamp).toDate();
       final existingEnd = (data['endTime'] as Timestamp).toDate();
 
-      if (startTime.isBefore(existingEnd) && endTime.isAfter(existingStart)) {
+      if (overlaps(startTime, endTime, existingStart, existingEnd)) {
         return true;
       }
     }
@@ -159,10 +177,15 @@ class ReservationService {
 
   // ─── Valider une réservation ──────────────────────────────────────────────
 
-  Future<void> validateReservation(String reservationId, String status) async {
+  Future<void> validateReservation(
+    String reservationId,
+    String status, {
+    required String validatedBy,
+  }) async {
     await _firestore.collection('reservations').doc(reservationId).update({
       'status': status,
       'validatedAt': FieldValue.serverTimestamp(),
+      'validatedBy': validatedBy,
     });
   }
 

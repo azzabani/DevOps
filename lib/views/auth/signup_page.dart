@@ -21,12 +21,12 @@ class _SignupPageState extends State<SignupPage> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-  String? _selectedRole = 'utilisateur';
+  String? _selectedRole = 'user';
   bool _acceptedTerms = false;
 
   final AuthService _authService = AuthService();
 
-  final List<String> _roles = ['utilisateur', 'manager'];
+  final List<String> _roles = ['user', 'manager', 'admin'];
 
   Future<void> _signup() async {
     if (!_formKey.currentState!.validate()) return;
@@ -280,12 +280,15 @@ class _SignupPageState extends State<SignupPage> {
                                 fillColor: Colors.grey.shade50,
                               ),
                               items: _roles.map((role) {
+                                final labels = {
+                                  'user': '👤 Utilisateur',
+                                  'manager': '📊 Manager',
+                                  'admin': '🛡️ Administrateur',
+                                };
                                 return DropdownMenuItem(
                                   value: role,
                                   child: Text(
-                                    role == 'utilisateur'
-                                        ? '👤 Utilisateur'
-                                        : '📊 Manager',
+                                    labels[role] ?? role,
                                     style: const TextStyle(fontSize: 14),
                                   ),
                                 );

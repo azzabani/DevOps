@@ -244,10 +244,15 @@ class ResourceDetailPage extends StatelessWidget {
                   // Bouton de réservation
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton(
+                    child: ElevatedButton.icon(
                       onPressed: () {
-                        _showReservationDialog(context);
+                        Navigator.pushNamed(
+                          context,
+                          '/booking',
+                          arguments: resource,
+                        );
                       },
+                      icon: const Icon(Icons.calendar_month),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         backgroundColor: Colors.blue.shade700,
@@ -257,7 +262,7 @@ class ResourceDetailPage extends StatelessWidget {
                         ),
                         elevation: 3,
                       ),
-                      child: const Text(
+                      label: const Text(
                         'Réserver cette ressource',
                         style: TextStyle(
                           fontSize: 16,
@@ -300,168 +305,6 @@ class ResourceDetailPage extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-
-  void _showReservationDialog(BuildContext context) {
-    final TextEditingController dateController = TextEditingController();
-    final TextEditingController timeController = TextEditingController();
-    final TextEditingController quantityController = TextEditingController(text: '1');
-    
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Text('Réserver'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    resource.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Date
-                  TextFormField(
-                    controller: dateController,
-                    readOnly: true,
-                    decoration: InputDecoration(
-                      labelText: 'Date de réservation',
-                      hintText: 'Sélectionner une date',
-                      prefixIcon: const Icon(Icons.calendar_today),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    onTap: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now(),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 30)),
-                      );
-                      if (date != null) {
-                        dateController.text = '${date.day}/${date.month}/${date.year}';
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  // Heure
-                  TextFormField(
-                    controller: timeController,
-                    readOnly: true,
-                    decoration: InputDecoration(
-                      labelText: 'Heure',
-                      hintText: 'Sélectionner une heure',
-                      prefixIcon: const Icon(Icons.access_time),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    onTap: () async {
-                      final time = await showTimePicker(
-                        context: context,
-                        initialTime: TimeOfDay.now(),
-                      );
-                      if (time != null) {
-                        timeController.text = time.format(context);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  // Quantité (si ressource avec plusieurs exemplaires)
-                  if (resource.capacity > 1)
-                    TextFormField(
-                      controller: quantityController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'Quantité',
-                        hintText: '1',
-                        prefixIcon: const Icon(Icons.numbers),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Annuler'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  if (dateController.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Veuillez sélectionner une date'),
-                        backgroundColor: Colors.orange,
-                      ),
-                    );
-                    return;
-                  }
-                  if (timeController.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Veuillez sélectionner une heure'),
-                        backgroundColor: Colors.orange,
-                      ),
-                    );
-                    return;
-                  }
-                  
-                  Navigator.pop(context);
-                  
-                  // Afficher la confirmation
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Icon(Icons.check_circle, size: 50, color: Colors.green),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'Réservation confirmée !',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text('${resource.name}'),
-                          Text('Le ${dateController.text} à ${timeController.text}'),
-                          if (quantityController.text != '1')
-                            Text('Quantité: ${quantityController.text}'),
-                        ],
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Fermer'),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                ),
-                child: const Text('Confirmer'),
-              ),
-            ],
-          );
-        },
-      ),
     );
   }
 

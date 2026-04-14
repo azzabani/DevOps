@@ -1,11 +1,16 @@
 // lib/views/home/main_shell.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_booking/providers/auth_provider.dart';
 import 'package:flutter_booking/services/auth_service.dart';
+import 'package:flutter_booking/services/notification_service.dart';
 import 'package:flutter_booking/views/home/home_page.dart';
 import 'package:flutter_booking/views/resources/resources_page.dart';
 import 'package:flutter_booking/views/calendar/calendar_page.dart';
 import 'package:flutter_booking/views/calendar/my_reservations_page.dart';
+import 'package:flutter_booking/views/notifications/notifications_page.dart';
 import 'package:flutter_booking/views/profile/profile_page.dart';
+import 'package:flutter_booking/widgets/notification_badge.dart';
 
 class MainShell extends StatefulWidget {
   final int initialIndex;
@@ -20,11 +25,22 @@ class _MainShellState extends State<MainShell> {
   final AuthService _authService = AuthService();
   String? _userRole;
 
+  void setIndex(int index) {
+    setState(() => _currentIndex = index);
+  }
+
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _loadRole();
+    // Charger le profil utilisateur dans le provider global
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final uid = _authService.currentUser?.uid;
+      if (uid != null) {
+        context.read<UserAuthProvider>().loadCurrentUser(uid);
+      }
+    });
   }
 
   Future<void> _loadRole() async {
@@ -37,7 +53,7 @@ class _MainShellState extends State<MainShell> {
           label: 'Accueil',
           icon: Icons.home_outlined,
           activeIcon: Icons.home,
-          page: const HomePage(),
+          page: HomePage(onNavigate: (i) => setState(() => _currentIndex = i)),
         ),
         _ShellPage(
           label: 'Ressources',
@@ -58,12 +74,48 @@ class _MainShellState extends State<MainShell> {
           page: const MyReservationsPage(),
         ),
         _ShellPage(
+          label: 'Notifications',
+          icon: Icons.notifications_outlined,
+          activeIcon: Icons.notifications,
+          page: const NotificationsPage(),
+        ),
+        _ShellPage(
           label: 'Profil',
           icon: Icons.person_outline,
           activeIcon: Icons.person,
           page: ProfilePage(),
         ),
       ];
+
+  List<NavigationDestination> _buildDestinations(List<_ShellPage> pages) {
+    final userId = _authService.currentUser?.uid ?? '';
+    return pages.map((p) {
+      if (p.label == 'Notifications') {
+        return NavigationDestination(
+          icon: StreamBuilder<int>(
+            stream: NotificationService().getUnreadCount(userId),
+            builder: (ctx, snap) => NotificationBadge(
+              count: snap.data ?? 0,
+              child: const Icon(Icons.notifications_outlined),
+            ),
+          ),
+          selectedIcon: StreamBuilder<int>(
+            stream: NotificationService().getUnreadCount(userId),
+            builder: (ctx, snap) => NotificationBadge(
+              count: snap.data ?? 0,
+              child: const Icon(Icons.notifications, color: Color(0xFF2563EB)),
+            ),
+          ),
+          label: 'Notifications',
+        );
+      }
+      return NavigationDestination(
+        icon: Icon(p.icon),
+        selectedIcon: Icon(p.activeIcon, color: const Color(0xFF2563EB)),
+        label: p.label,
+      );
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,15 +141,7 @@ class _MainShellState extends State<MainShell> {
           backgroundColor: Colors.white,
           indicatorColor: const Color(0xFF2563EB).withOpacity(0.12),
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          destinations: pages
-              .map(
-                (p) => NavigationDestination(
-                  icon: Icon(p.icon),
-                  selectedIcon: Icon(p.activeIcon, color: const Color(0xFF2563EB)),
-                  label: p.label,
-                ),
-              )
-              .toList(),
+          destinations: _buildDestinations(pages),
         ),
       ),
       // FAB pour admin/manager

@@ -488,6 +488,55 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
 
+                    const SizedBox(height: 16),
+
+                    // Bouton déconnexion
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Déconnexion'),
+                              content: const Text('Voulez-vous vraiment vous déconnecter ?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Annuler'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: const Text('Déconnecter'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm == true && mounted) {
+                            await _authService.signOut();
+                            if (mounted) {
+                              Navigator.pushNamedAndRemoveUntil(
+                                  context, '/login', (route) => false);
+                            }
+                          }
+                        },
+                        icon: const Icon(Icons.logout),
+                        label: const Text('Se déconnecter'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red.shade600,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+
                     const SizedBox(height: 40),
                   ],
                 ),

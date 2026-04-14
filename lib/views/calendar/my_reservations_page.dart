@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_booking/models/reservation_model.dart';
+import 'package:flutter_booking/models/resource_model.dart';
 import 'package:flutter_booking/services/auth_service.dart';
 import 'package:flutter_booking/services/reservation_service.dart';
 import 'package:flutter_booking/services/notification_service.dart';
+import 'package:flutter_booking/services/pdf_service.dart';
+import 'package:flutter_booking/services/ical_service.dart';
 
 class MyReservationsPage extends StatefulWidget {
   const MyReservationsPage({super.key});
@@ -383,6 +386,46 @@ class _ReservationCard extends StatelessWidget {
                       ),
                     ],
 
+                    // Boutons PDF / iCal (uniquement si confirmée)
+                    if (reservation.status == 'confirmed') ...[
+                      const SizedBox(height: 12),
+                      const Divider(height: 1),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () =>
+                                  _generatePdf(context, resourceName),
+                              icon: const Icon(Icons.picture_as_pdf, size: 16),
+                              label: const Text('PDF'),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: Colors.red.shade300),
+                                foregroundColor: Colors.red,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _exportIcal(context),
+                              icon: const Icon(Icons.calendar_today, size: 16),
+                              label: const Text('iCal'),
+                              style: OutlinedButton.styleFrom(
+                                side:
+                                    BorderSide(color: Colors.purple.shade300),
+                                foregroundColor: Colors.purple,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+
                     // Actions (uniquement si pending)
                     if (reservation.status == 'pending') ...[
                       const SizedBox(height: 12),
@@ -431,6 +474,53 @@ class _ReservationCard extends StatelessWidget {
         );
       },
     );
+  }
+  Future<void> _generatePdf(BuildContext context, String resourceName) async {
+    try {
+      final resourceDoc = await FirebaseFirestore.instance
+          .collection('resources')
+          .doc(reservation.resourceId)
+          .get();
+
+      final resource = resourceDoc.exists
+          ? ResourceModel.fromFirestore(
+              resourceDoc.data() as Map<String, dynamic>, resourceDoc.id)
+          : ResourceModel(
+              id: reservation.resourceId,
+              name: resourceName,
+              description: '',
+              image: '',
+              capacity: 0,
+              category: '',
+            );
+
+      final pdfBytes = await PdfService()
+          .generateConfirmationPdf(reservation, resource);
+      await PdfService()
+          .sharePdf(pdfBytes, 'reservation_${reservation.id}.pdf');
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Erreur PDF: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportIcal(BuildContext context) async {
+    try {
+      await ICalService().shareIcs(reservation);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Erreur iCal: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 }
 
