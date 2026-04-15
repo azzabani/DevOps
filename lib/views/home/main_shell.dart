@@ -144,8 +144,8 @@ class _MainShellState extends State<MainShell> {
           destinations: _buildDestinations(pages),
         ),
       ),
-      // FAB pour admin/manager
-      floatingActionButton: (_userRole == 'admin' || _userRole == 'manager')
+      // FAB uniquement pour admin (pas manager)
+      floatingActionButton: _userRole == 'admin'
           ? FloatingActionButton.extended(
               onPressed: () => Navigator.pushNamed(context, '/admin'),
               icon: const Icon(Icons.admin_panel_settings),
@@ -154,7 +154,16 @@ class _MainShellState extends State<MainShell> {
               foregroundColor: Colors.white,
               elevation: 3,
             )
-          : null,
+          : _userRole == 'manager'
+              ? FloatingActionButton.extended(
+                  onPressed: () => Navigator.pushNamed(context, '/admin'),
+                  icon: const Icon(Icons.manage_accounts),
+                  label: const Text('Manager'),
+                  backgroundColor: const Color(0xFF7C3AED),
+                  foregroundColor: Colors.white,
+                  elevation: 3,
+                )
+              : null,
     );
   }
 }

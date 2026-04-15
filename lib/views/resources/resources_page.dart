@@ -15,15 +15,22 @@ class _ResourcesPageState extends State<ResourcesPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String _selectedCategory = 'Tous';
   bool _useLocalData = true;
+  int _minCapacity = 0;
+  int _maxCapacity = 100;
+  RangeValues _capacityRange = const RangeValues(0, 100);
+  bool _showCapacityFilter = false;
   
   List<String> get _categories => ResourcesData.getCategories();
   
   List<ResourceModel> get _filteredLocalResources {
     final resources = ResourcesData.resources;
-    if (_selectedCategory == 'Tous') {
-      return resources;
-    }
-    return resources.where((r) => r.category == _selectedCategory).toList();
+    return resources.where((r) {
+      final categoryMatch =
+          _selectedCategory == 'Tous' || r.category == _selectedCategory;
+      final capacityMatch = r.capacity >= _capacityRange.start &&
+          r.capacity <= _capacityRange.end;
+      return categoryMatch && capacityMatch;
+    }).toList();
   }
 
   @override
@@ -98,7 +105,53 @@ class _ResourcesPageState extends State<ResourcesPage> {
               },
             ),
           ),
-          
+
+          // Filtre capacité
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: [
+                InkWell(
+                  onTap: () =>
+                      setState(() => _showCapacityFilter = !_showCapacityFilter),
+                  child: Row(
+                    children: [
+                      Icon(Icons.people_outline,
+                          size: 16, color: Colors.grey.shade600),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Capacité : ${_capacityRange.start.toInt()} – ${_capacityRange.end.toInt()} personnes',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                      const Spacer(),
+                      Icon(
+                        _showCapacityFilter
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
+                        size: 18,
+                        color: Colors.grey.shade500,
+                      ),
+                    ],
+                  ),
+                ),
+                if (_showCapacityFilter)
+                  RangeSlider(
+                    values: _capacityRange,
+                    min: 0,
+                    max: 100,
+                    divisions: 20,
+                    labels: RangeLabels(
+                      '${_capacityRange.start.toInt()}',
+                      '${_capacityRange.end.toInt()}',
+                    ),
+                    activeColor: Colors.blue.shade700,
+                    onChanged: (v) => setState(() => _capacityRange = v),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
           Expanded(
             child: _useLocalData
                 ? _buildLocalResourcesList()

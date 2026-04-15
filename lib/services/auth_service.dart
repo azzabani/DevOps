@@ -77,6 +77,11 @@ class AuthService {
     await _auth.signOut();
   }
 
+  // Réinitialisation du mot de passe
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email);
+  }
+
   // Vérifier si l'utilisateur est admin
   Future<bool> isAdmin() async {
     User? user = currentUser;

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_booking/services/auth_service.dart';
 import 'package:flutter_booking/views/admin/admin_dashboard_page.dart';
 import 'package:flutter_booking/views/admin/admin_resource_page.dart';
+import 'package:flutter_booking/views/admin/admin_users_page.dart';
 import 'package:flutter_booking/views/admin/admin_validate_page.dart';
 import 'package:flutter_booking/views/admin/admin_reservations_page.dart';
 
@@ -33,7 +34,7 @@ class _AdminPageState extends State<AdminPage>
         _isLoading = false;
         // Admin : 4 onglets | Manager : 2 onglets
         _tabController = TabController(
-          length: role == 'admin' ? 4 : 2,
+          length: role == 'admin' ? 5 : 2,
           vsync: this,
         );
       });
@@ -72,6 +73,7 @@ class _AdminPageState extends State<AdminPage>
               ? const [
                   Tab(icon: Icon(Icons.dashboard_outlined), text: 'Dashboard'),
                   Tab(icon: Icon(Icons.inventory_2_outlined), text: 'Ressources'),
+                  Tab(icon: Icon(Icons.people_outline), text: 'Utilisateurs'),
                   Tab(icon: Icon(Icons.pending_actions), text: 'Validation'),
                   Tab(icon: Icon(Icons.list_alt), text: 'Toutes'),
                 ]
@@ -87,6 +89,7 @@ class _AdminPageState extends State<AdminPage>
             ? const [
                 AdminDashboardPage(),
                 AdminResourcePage(),
+                AdminUsersPage(),
                 AdminValidatePage(),
                 AdminReservationsPage(),
               ]

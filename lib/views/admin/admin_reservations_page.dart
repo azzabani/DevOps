@@ -170,7 +170,16 @@ class _AdminReservationsPageState extends State<AdminReservationsPage> {
 
               final reservations = snapshot.data!.docs;
 
-              if (reservations.isEmpty) {
+              // Tri côté client par date décroissante (évite l'index composite Firestore)
+              final sortedDocs = List.from(reservations)
+                ..sort((a, b) {
+                  final aT = (a.data() as Map)['createdAt'] as Timestamp?;
+                  final bT = (b.data() as Map)['createdAt'] as Timestamp?;
+                  if (aT == null || bT == null) return 0;
+                  return bT.compareTo(aT);
+                });
+
+              if (sortedDocs.isEmpty) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -192,9 +201,9 @@ class _AdminReservationsPageState extends State<AdminReservationsPage> {
 
               return ListView.builder(
                 padding: const EdgeInsets.all(16),
-                itemCount: reservations.length,
+                itemCount: sortedDocs.length,
                 itemBuilder: (context, index) {
-                  final doc = reservations[index];
+                  final doc = sortedDocs[index];
                   final data = doc.data() as Map<String, dynamic>;
 
                   DateTime startTime = (data['startTime'] as Timestamp).toDate();
@@ -450,9 +459,9 @@ class _AdminReservationsPageState extends State<AdminReservationsPage> {
   }
 
   Stream<QuerySnapshot> _getReservationsStream() {
-    Query query = _firestore
-        .collection('reservations')
-        .orderBy('createdAt', descending: true);
+    // Pas de orderBy Firestore pour éviter l'index composite
+    // Le tri est fait côté client dans le builder
+    Query query = _firestore.collection('reservations');
 
     if (_filter == 'pending') {
       query = query.where('status', isEqualTo: 'pending');

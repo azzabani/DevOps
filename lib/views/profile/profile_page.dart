@@ -69,35 +69,26 @@ class _ProfilePageState extends State<ProfilePage> {
       final user = _authService.currentUser;
       if (user == null) return;
 
-      // Mettre à jour le nom dans Firestore
-      await _firestore.collection('users').doc(user.uid).update({
+      // Mettre à jour le nom dans Firestore (set avec merge pour créer si inexistant)
+      await _firestore.collection('users').doc(user.uid).set({
         'name': _nameController.text.trim(),
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
 
       // Mettre à jour l'email si changé
       if (_emailController.text.trim() != user.email) {
-        await user.verifyBeforeUpdateEmail(_emailController.text.trim());
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Un email de vérification a été envoyé. Veuillez cliquer sur le lien pour confirmer.',
-              ),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 5),
-            ),
-          );
-          await _authService.signOut();
-          if (mounted) {
-            Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-          }
-        }
-        return;
+        await _firestore.collection('users').doc(user.uid).set({
+          'email': _emailController.text.trim(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
       }
 
       if (mounted) {
-        setState(() => _isEditing = false);
+        setState(() {
+          _isEditing = false;
+          // Recharger le profil pour afficher les nouvelles données
+        });
+        await _loadProfile();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Profil mis à jour avec succès !'),

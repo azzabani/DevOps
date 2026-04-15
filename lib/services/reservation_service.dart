@@ -116,6 +116,7 @@ class ReservationService {
   // ─── Réservations d'un utilisateur ───────────────────────────────────────
 
   Stream<List<ReservationModel>> getUserReservations(String userId) {
+    // Pas de orderBy Firestore pour éviter l'index composite
     return _firestore
         .collection('reservations')
         .where('userId', isEqualTo: userId)
@@ -126,6 +127,7 @@ class ReservationService {
           .whereType<ReservationModel>()
           .toList();
 
+      // Tri côté client
       reservations.sort((a, b) => b.startTime.compareTo(a.startTime));
       return reservations;
     });
@@ -134,6 +136,8 @@ class ReservationService {
   // ─── Toutes les réservations (admin) ─────────────────────────────────────
 
   Stream<List<ReservationModel>> getAllReservations({String? statusFilter}) {
+    // Pas de orderBy Firestore pour éviter l'index composite
+    // Le tri est fait côté client
     Query query = _firestore.collection('reservations');
 
     if (statusFilter != null && statusFilter != 'all') {
@@ -146,6 +150,7 @@ class ReservationService {
           .whereType<ReservationModel>()
           .toList();
 
+      // Tri côté client par date de création décroissante
       reservations.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return reservations;
     });

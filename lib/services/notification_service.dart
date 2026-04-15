@@ -34,14 +34,20 @@ class NotificationService {
     return _firestore
         .collection('notifications')
         .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
+        // Pas de orderBy Firestore pour éviter l'index composite
+        // Le tri est fait côté client
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => NotificationModel.fromFirestore(
-                  doc.data() as Map<String, dynamic>,
-                  doc.id,
-                ))
-            .toList());
+        .map((snapshot) {
+          final list = snapshot.docs
+              .map((doc) => NotificationModel.fromFirestore(
+                    doc.data() as Map<String, dynamic>,
+                    doc.id,
+                  ))
+              .toList();
+          // Tri côté client par date décroissante
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return list;
+        });
   }
 
   // Marquer une notification comme lue

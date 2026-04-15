@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_booking/services/auth_service.dart';
 import 'signup_page.dart';
-import '../home/home_page.dart';
+import '../home/main_shell.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -35,7 +35,7 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const HomePage()),
+          MaterialPageRoute(builder: (_) => const MainShell()),
         );
       }
     } on FirebaseAuthException catch (e) {
@@ -253,14 +253,74 @@ class _LoginPageState extends State<LoginPage> {
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton(
-                                onPressed: () {
-                                  // TODO: Implémenter réinitialisation mot de passe
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Fonctionnalité à venir'),
-                                      duration: Duration(seconds: 2),
+                                onPressed: () async {
+                                  final emailCtrl = TextEditingController(
+                                      text: _emailController.text.trim());
+                                  final send = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => StatefulBuilder(
+                                      builder: (ctx, _) => AlertDialog(
+                                        title: const Text('Mot de passe oublié'),
+                                        content: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Text(
+                                                'Entrez votre email pour recevoir un lien de réinitialisation.'),
+                                            const SizedBox(height: 12),
+                                            TextField(
+                                              controller: emailCtrl,
+                                              keyboardType: TextInputType.emailAddress,
+                                              decoration: InputDecoration(
+                                                labelText: 'Email',
+                                                prefixIcon: const Icon(Icons.email_outlined),
+                                                border: OutlineInputBorder(
+                                                    borderRadius: BorderRadius.circular(10)),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(ctx, false),
+                                            child: const Text('Annuler'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () => Navigator.pop(ctx, true),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.blue.shade700,
+                                              foregroundColor: Colors.white,
+                                            ),
+                                            child: const Text('Envoyer'),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   );
+                                  if (send == true && emailCtrl.text.trim().isNotEmpty) {
+                                    try {
+                                      await _authService.sendPasswordResetEmail(
+                                          emailCtrl.text.trim());
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                                'Email envoyé ! Vérifiez votre boîte mail.'),
+                                            backgroundColor: Colors.green,
+                                            duration: Duration(seconds: 4),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Erreur : $e'),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  }
                                 },
                                 child: Text(
                                   'Mot de passe oublié ?',

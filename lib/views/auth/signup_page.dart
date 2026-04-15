@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_booking/services/auth_service.dart';
 import 'login_page.dart';
-import '../home/home_page.dart';
+import '../home/main_shell.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -66,7 +66,7 @@ class _SignupPageState extends State<SignupPage> {
         
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const HomePage()),
+          MaterialPageRoute(builder: (_) => const MainShell()),
         );
       }
     } on FirebaseAuthException catch (e) {

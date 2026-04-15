@@ -55,24 +55,29 @@ class _HomePageState extends State<HomePage> {
     final user = _authService.currentUser;
     if (user == null) return;
     try {
+      // Charger toutes les réservations de l'utilisateur en une seule requête
+      // pour éviter les index composites Firestore
       final results = await Future.wait([
         _firestore
             .collection('reservations')
             .where('userId', isEqualTo: user.uid)
-            .where('status', isEqualTo: 'pending')
-            .get(),
-        _firestore
-            .collection('reservations')
-            .where('userId', isEqualTo: user.uid)
-            .where('status', isEqualTo: 'confirmed')
             .get(),
         _firestore.collection('resources').get(),
       ]);
+
+      int pending = 0;
+      int confirmed = 0;
+      for (final doc in results[0].docs) {
+        final status = (doc.data())['status'] as String? ?? '';
+        if (status == 'pending') pending++;
+        if (status == 'confirmed') confirmed++;
+      }
+
       if (mounted) {
         setState(() {
-          _pendingCount = results[0].docs.length;
-          _confirmedCount = results[1].docs.length;
-          _totalResources = results[2].docs.length;
+          _pendingCount = pending;
+          _confirmedCount = confirmed;
+          _totalResources = results[1].docs.length;
         });
       }
     } catch (_) {}
@@ -83,38 +88,45 @@ class _HomePageState extends State<HomePage> {
     if (user == null) return;
     try {
       final now = DateTime.now();
+      // Requête simple sans index composite — filtre côté client
       final snap = await _firestore
           .collection('reservations')
           .where('userId', isEqualTo: user.uid)
-          .where('status', whereIn: ['pending', 'confirmed'])
-          .orderBy('startTime')
-          .limit(3)
           .get();
 
       final upcoming = <Map<String, dynamic>>[];
       for (final doc in snap.docs) {
         final d = doc.data();
+        final status = d['status'] as String? ?? '';
+        if (status != 'pending' && status != 'confirmed') continue;
+
         final start = (d['startTime'] as Timestamp).toDate();
-        if (start.isAfter(now)) {
-          // Fetch resource name
-          String resourceName = 'Ressource';
-          if ((d['resourceId'] as String).isNotEmpty) {
-            final rDoc = await _firestore
-                .collection('resources')
-                .doc(d['resourceId'])
-                .get();
-            if (rDoc.exists) resourceName = rDoc.data()?['name'] ?? 'Ressource';
-          }
-          upcoming.add({
-            'id': doc.id,
-            'resourceName': resourceName,
-            'startTime': start,
-            'endTime': (d['endTime'] as Timestamp).toDate(),
-            'status': d['status'],
-          });
+        if (!start.isAfter(now)) continue;
+
+        String resourceName = d['resourceName'] as String? ?? '';
+        if (resourceName.isEmpty && (d['resourceId'] as String? ?? '').isNotEmpty) {
+          final rDoc = await _firestore
+              .collection('resources')
+              .doc(d['resourceId'])
+              .get();
+          if (rDoc.exists) resourceName = rDoc.data()?['name'] ?? 'Ressource';
         }
+        if (resourceName.isEmpty) resourceName = 'Ressource';
+
+        upcoming.add({
+          'id': doc.id,
+          'resourceName': resourceName,
+          'startTime': start,
+          'endTime': (d['endTime'] as Timestamp).toDate(),
+          'status': status,
+        });
       }
-      if (mounted) setState(() => _upcomingReservations = upcoming);
+
+      // Tri côté client par startTime croissant, limité à 3
+      upcoming.sort((a, b) =>
+          (a['startTime'] as DateTime).compareTo(b['startTime'] as DateTime));
+      final limited = upcoming.take(3).toList();
+      if (mounted) setState(() => _upcomingReservations = limited);
     } catch (_) {}
   }
 
@@ -233,11 +245,52 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
       actions: [
+        // Bouton déconnexion rapide
+        IconButton(
+          icon: const Icon(Icons.logout, color: Colors.white),
+          tooltip: 'Se déconnecter',
+          onPressed: () async {
+            final confirm = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Déconnexion'),
+                content: const Text('Voulez-vous vraiment vous déconnecter ?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Annuler'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Déconnecter'),
+                  ),
+                ],
+              ),
+            );
+            if (confirm == true && mounted) {
+              await _authService.signOut();
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                    context, '/login', (route) => false);
+              }
+            }
+          },
+        ),
         Stack(
           children: [
             IconButton(
               icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-              onPressed: () => Navigator.pushNamed(context, '/notifications'),
+              onPressed: () {
+                if (widget.onNavigate != null) {
+                  widget.onNavigate!(4);
+                } else {
+                  Navigator.pushNamed(context, '/notifications');
+                }
+              },
             ),
             if (_pendingCount > 0)
               Positioned(

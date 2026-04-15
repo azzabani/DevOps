@@ -27,35 +27,75 @@ class _AdminValidatePageState extends State<AdminValidatePage> {
       ReservationModel reservation, String newStatus) async {
     if (_isProcessing) return;
 
-    // Demande de confirmation
-    final action =
-        newStatus == 'confirmed' ? 'confirmer' : 'rejeter';
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(newStatus == 'confirmed'
-            ? 'Confirmer la réservation'
-            : 'Rejeter la réservation'),
-        content: Text(
-            'Voulez-vous vraiment $action cette réservation de ${reservation.userName} ?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Non')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  newStatus == 'confirmed' ? Colors.green : Colors.red,
-            ),
-            child: Text(
-                newStatus == 'confirmed' ? 'Confirmer' : 'Rejeter',
-                style: const TextStyle(color: Colors.white)),
+    String? motif;
+
+    if (newStatus == 'rejected') {
+      // Demander le motif de refus
+      final motifCtrl = TextEditingController();
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Rejeter la réservation'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                  'Voulez-vous rejeter la réservation de ${reservation.userName} ?'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: motifCtrl,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  labelText: 'Motif du refus (optionnel)',
+                  hintText: 'Ex: Ressource indisponible pour maintenance…',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Annuler')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Rejeter'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+      motif = motifCtrl.text.trim();
+    } else {
+      // Confirmation simple pour la validation
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Confirmer la réservation'),
+          content: Text(
+              'Voulez-vous confirmer la réservation de ${reservation.userName} ?'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Non')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Confirmer'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
 
     setState(() => _isProcessing = true);
 
@@ -108,7 +148,8 @@ class _AdminValidatePageState extends State<AdminValidatePage> {
             : '❌ Réservation rejetée',
         message: newStatus == 'confirmed'
             ? 'Votre réservation pour "$resourceName" le $dateStr a été confirmée par $validatorName.'
-            : 'Votre réservation pour "$resourceName" le $dateStr a été rejetée par $validatorName.',
+            : 'Votre réservation pour "$resourceName" le $dateStr a été rejetée par $validatorName.'
+              '${motif != null && motif.isNotEmpty ? ' Motif : $motif' : ''}',
         type: newStatus == 'confirmed' ? 'confirmation' : 'rejection',
         reservationId: reservation.id,
       );
@@ -147,16 +188,19 @@ class _AdminValidatePageState extends State<AdminValidatePage> {
   Widget _buildTabBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Row(
-        children: [
-          Expanded(
-              child: _buildTab('En attente', 'pending', Colors.orange)),
-          const SizedBox(width: 8),
-          Expanded(
-              child: _buildTab('Confirmées', 'confirmed', Colors.green)),
-          const SizedBox(width: 8),
-          Expanded(child: _buildTab('Toutes', 'all', Colors.blue)),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _buildTab('En attente', 'pending', Colors.orange),
+            const SizedBox(width: 8),
+            _buildTab('Confirmées', 'confirmed', Colors.green),
+            const SizedBox(width: 8),
+            _buildTab('Rejetées', 'rejected', Colors.red),
+            const SizedBox(width: 8),
+            _buildTab('Toutes', 'all', Colors.blue),
+          ],
+        ),
       ),
     );
   }
@@ -234,7 +278,11 @@ class _AdminValidatePageState extends State<AdminValidatePage> {
                 Text(
                   _selectedTab == 'pending'
                       ? 'Aucune réservation en attente'
-                      : 'Aucune réservation',
+                      : _selectedTab == 'confirmed'
+                          ? 'Aucune réservation confirmée'
+                          : _selectedTab == 'rejected'
+                              ? 'Aucune réservation rejetée'
+                              : 'Aucune réservation',
                   style: TextStyle(
                       fontSize: 15, color: Colors.grey.shade500),
                 ),

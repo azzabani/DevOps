@@ -1,7 +1,7 @@
 // lib/services/pdf_service.dart
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -19,6 +19,18 @@ class PdfService {
     final pdf = pw.Document();
     final dtFmt = DateFormat('dd/MM/yyyy HH:mm');
     final tFmt = DateFormat('HH:mm');
+
+    // Charger une police Google Fonts qui supporte les accents
+    final font = await PdfGoogleFonts.nunitoRegular();
+    final fontBold = await PdfGoogleFonts.nunitoBold();
+
+    final baseStyle = pw.TextStyle(font: font, fontSize: 11);
+    final boldStyle = pw.TextStyle(font: fontBold, fontSize: 11);
+    final titleStyle = pw.TextStyle(font: fontBold, fontSize: 18, color: PdfColors.white);
+    final subtitleStyle = pw.TextStyle(font: font, fontSize: 10, color: PdfColors.white);
+    final statusStyle = pw.TextStyle(font: fontBold, fontSize: 12, color: PdfColors.green700);
+    final labelStyle = pw.TextStyle(font: fontBold, fontSize: 11, color: PdfColors.grey700);
+    final footerStyle = pw.TextStyle(font: font, fontSize: 8, color: PdfColors.grey500);
 
     pdf.addPage(
       pw.Page(
@@ -42,20 +54,13 @@ class PdfService {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text(
-                            'Booky — Confirmation de réservation',
-                            style: pw.TextStyle(
-                              fontSize: 18,
-                              fontWeight: pw.FontWeight.bold,
-                              color: PdfColors.white,
-                            ),
+                            'Booky - Confirmation de reservation',
+                            style: titleStyle,
                           ),
                           pw.SizedBox(height: 4),
                           pw.Text(
-                            'Généré le ${dtFmt.format(DateTime.now())}',
-                            style: const pw.TextStyle(
-                              fontSize: 10,
-                              color: PdfColors.white,
-                            ),
+                            'Genere le ${dtFmt.format(DateTime.now())}',
+                            style: subtitleStyle,
                           ),
                         ],
                       ),
@@ -75,12 +80,8 @@ class PdfService {
                   border: pw.Border.all(color: PdfColors.green700),
                 ),
                 child: pw.Text(
-                  '✓ Réservation Confirmée',
-                  style: pw.TextStyle(
-                    color: PdfColors.green700,
-                    fontWeight: pw.FontWeight.bold,
-                    fontSize: 12,
-                  ),
+                  'Reservation Confirmee',
+                  style: statusStyle,
                 ),
               ),
 
@@ -95,26 +96,26 @@ class PdfService {
                 ),
                 child: pw.Column(
                   children: [
-                    _row('Ressource', resource.name),
+                    _row('Ressource', resource.name, labelStyle, baseStyle),
                     _divider(),
-                    _row('Catégorie', resource.category),
+                    _row('Categorie', resource.category, labelStyle, baseStyle),
                     _divider(),
-                    _row('Utilisateur', reservation.userName),
+                    _row('Utilisateur', reservation.userName, labelStyle, baseStyle),
                     _divider(),
-                    _row('Date de début', dtFmt.format(reservation.startTime)),
+                    _row('Date de debut', dtFmt.format(reservation.startTime), labelStyle, baseStyle),
                     _divider(),
-                    _row('Heure de fin', tFmt.format(reservation.endTime)),
+                    _row('Heure de fin', tFmt.format(reservation.endTime), labelStyle, baseStyle),
                     if (reservation.validatedAt != null) ...[
                       _divider(),
-                      _row('Validée le', dtFmt.format(reservation.validatedAt!)),
+                      _row('Validee le', dtFmt.format(reservation.validatedAt!), labelStyle, baseStyle),
                     ],
                     if (reservation.validatedBy != null) ...[
                       _divider(),
-                      _row('Validée par', reservation.validatedBy!),
+                      _row('Validee par', reservation.validatedBy!, labelStyle, baseStyle),
                     ],
                     if (reservation.notes != null && reservation.notes!.isNotEmpty) ...[
                       _divider(),
-                      _row('Notes', reservation.notes!),
+                      _row('Notes', reservation.notes!, labelStyle, baseStyle),
                     ],
                   ],
                 ),
@@ -125,8 +126,8 @@ class PdfService {
               // Pied de page
               pw.Divider(color: PdfColors.grey300),
               pw.Text(
-                'ID de réservation : ${reservation.id}',
-                style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey500),
+                'ID de reservation : ${reservation.id}',
+                style: footerStyle,
               ),
             ],
           );
@@ -139,11 +140,10 @@ class PdfService {
 
   /// Partage ou télécharge le PDF selon la plateforme.
   Future<void> sharePdf(Uint8List pdfBytes, String fileName) async {
-    // Sur toutes les plateformes, utiliser Printing qui gère Web + Mobile
     await Printing.sharePdf(bytes: pdfBytes, filename: fileName);
   }
 
-  pw.Widget _row(String label, String value) {
+  pw.Widget _row(String label, String value, pw.TextStyle labelStyle, pw.TextStyle valueStyle) {
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 6),
       child: pw.Row(
@@ -151,20 +151,10 @@ class PdfService {
         children: [
           pw.SizedBox(
             width: 140,
-            child: pw.Text(
-              label,
-              style: pw.TextStyle(
-                fontWeight: pw.FontWeight.bold,
-                fontSize: 11,
-                color: PdfColors.grey700,
-              ),
-            ),
+            child: pw.Text(label, style: labelStyle),
           ),
           pw.Expanded(
-            child: pw.Text(
-              value,
-              style: const pw.TextStyle(fontSize: 11),
-            ),
+            child: pw.Text(value, style: valueStyle),
           ),
         ],
       ),
