@@ -11,6 +11,7 @@ import 'package:flutter_booking/services/preferences_service.dart';
 import 'package:flutter_booking/providers/auth_provider.dart';
 import 'package:flutter_booking/providers/resource_provider.dart';
 import 'package:flutter_booking/providers/calendar_provider.dart';
+import 'package:flutter_booking/theme/app_theme.dart';
 
 import 'views/auth/login_page.dart';
 import 'views/auth/signup_page.dart';
@@ -23,6 +24,7 @@ import 'views/calendar/my_reservations_page.dart';
 import 'views/calendar/edit_reservation_page.dart';
 import 'views/notifications/notifications_page.dart';
 import 'views/admin/admin_page.dart';
+import 'views/splash_screen.dart';
 import 'models/resource_model.dart';
 import 'models/reservation_model.dart';
 
@@ -47,42 +49,14 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Booky',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF2563EB),
-            brightness: Brightness.light,
-          ),
-          useMaterial3: true,
-          fontFamily: 'Poppins',
-          appBarTheme: const AppBarTheme(
-            elevation: 0,
-            centerTitle: true,
-            backgroundColor: Color(0xFF2563EB),
-            foregroundColor: Colors.white,
-          ),
-          inputDecorationTheme: InputDecorationTheme(
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
-            ),
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              elevation: 0,
-              backgroundColor: const Color(0xFF2563EB),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ),
+        theme: AppTheme.light,
         initialRoute: '/',
         onGenerateRoute: (settings) {
           switch (settings.name) {
             case '/':
-              return MaterialPageRoute(builder: (_) => const AuthWrapper());
+              return MaterialPageRoute(
+                builder: (_) => const SplashScreen(nextScreen: AuthWrapper()),
+              );
             case '/login':
               return MaterialPageRoute(builder: (_) => const LoginPage());
             case '/signup':
@@ -160,8 +134,28 @@ class _AuthWrapperState extends State<AuthWrapper> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting ||
             _isCheckingAutoLogin) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+          return Scaffold(
+            backgroundColor: AppColors.background,
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(
+                    width: 36, height: 36,
+                    child: CircularProgressIndicator(
+                      color: AppColors.primary,
+                      strokeWidth: 3,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Connexion…',
+                      style: TextStyle(
+                          color: AppColors.textTertiary,
+                          fontSize: 13,
+                          fontFamily: 'Poppins')),
+                ],
+              ),
+            ),
           );
         }
         if (snapshot.data != null) return const MainShell();

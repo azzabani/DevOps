@@ -209,7 +209,7 @@ class _BookingPageState extends State<BookingPage> {
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16)),
                               Text(
-                                'Capacité : ${widget.resource.capacity} personnes · ${widget.resource.category}',
+                                '${widget.resource.capacityLabel} · ${widget.resource.category}',
                                 style: TextStyle(
                                     fontSize: 12,
                                     color: Colors.grey.shade600),

@@ -2,6 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_booking/services/auth_service.dart';
+import 'package:flutter_booking/theme/app_theme.dart';
+import 'package:flutter_booking/widgets/falling_resources_bg.dart';
+import 'package:flutter_booking/widgets/app_logo.dart';
 import 'package:intl/intl.dart';
 
 class HomePage extends StatefulWidget {
@@ -12,7 +15,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final AuthService _authService = AuthService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -21,22 +24,54 @@ class _HomePageState extends State<HomePage> {
   int _pendingCount = 0;
   int _confirmedCount = 0;
   int _totalResources = 0;
-  List<Map<String, dynamic>> _upcomingReservations = [];
   bool _isLoading = true;
+
+  late AnimationController _fadeController;
+  late AnimationController _slideController;
+  late AnimationController _staggerController;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _headerSlide;
+  late Animation<double> _staggerAnim;
 
   @override
   void initState() {
     super.initState();
+    _fadeController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600));
+    _slideController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 700));
+    _staggerController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 900));
+
+    _fadeAnim =
+        CurvedAnimation(parent: _fadeController, curve: Curves.easeOut);
+    _headerSlide = Tween<Offset>(
+            begin: const Offset(0, -0.2), end: Offset.zero)
+        .animate(CurvedAnimation(
+            parent: _slideController, curve: Curves.easeOutCubic));
+    _staggerAnim =
+        CurvedAnimation(parent: _staggerController, curve: Curves.easeOut);
+
     _loadAll();
   }
 
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _slideController.dispose();
+    _staggerController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadAll() async {
-    await Future.wait([
-      _loadUserData(),
-      _loadStats(),
-      _loadUpcoming(),
-    ]);
-    if (mounted) setState(() => _isLoading = false);
+    await Future.wait([_loadUserData(), _loadStats()]);
+    if (mounted) {
+      setState(() => _isLoading = false);
+      _fadeController.forward();
+      _slideController.forward();
+      Future.delayed(const Duration(milliseconds: 200),
+          () => _staggerController.forward());
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -55,8 +90,6 @@ class _HomePageState extends State<HomePage> {
     final user = _authService.currentUser;
     if (user == null) return;
     try {
-      // Charger toutes les réservations de l'utilisateur en une seule requête
-      // pour éviter les index composites Firestore
       final results = await Future.wait([
         _firestore
             .collection('reservations')
@@ -64,15 +97,12 @@ class _HomePageState extends State<HomePage> {
             .get(),
         _firestore.collection('resources').get(),
       ]);
-
-      int pending = 0;
-      int confirmed = 0;
+      int pending = 0, confirmed = 0;
       for (final doc in results[0].docs) {
         final status = (doc.data())['status'] as String? ?? '';
         if (status == 'pending') pending++;
         if (status == 'confirmed') confirmed++;
       }
-
       if (mounted) {
         setState(() {
           _pendingCount = pending;
@@ -83,202 +113,153 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
   }
 
-  Future<void> _loadUpcoming() async {
-    final user = _authService.currentUser;
-    if (user == null) return;
-    try {
-      final now = DateTime.now();
-      // Requête simple sans index composite — filtre côté client
-      final snap = await _firestore
-          .collection('reservations')
-          .where('userId', isEqualTo: user.uid)
-          .get();
-
-      final upcoming = <Map<String, dynamic>>[];
-      for (final doc in snap.docs) {
-        final d = doc.data();
-        final status = d['status'] as String? ?? '';
-        if (status != 'pending' && status != 'confirmed') continue;
-
-        final start = (d['startTime'] as Timestamp).toDate();
-        if (!start.isAfter(now)) continue;
-
-        String resourceName = d['resourceName'] as String? ?? '';
-        if (resourceName.isEmpty && (d['resourceId'] as String? ?? '').isNotEmpty) {
-          final rDoc = await _firestore
-              .collection('resources')
-              .doc(d['resourceId'])
-              .get();
-          if (rDoc.exists) resourceName = rDoc.data()?['name'] ?? 'Ressource';
-        }
-        if (resourceName.isEmpty) resourceName = 'Ressource';
-
-        upcoming.add({
-          'id': doc.id,
-          'resourceName': resourceName,
-          'startTime': start,
-          'endTime': (d['endTime'] as Timestamp).toDate(),
-          'status': status,
-        });
-      }
-
-      // Tri côté client par startTime croissant, limité à 3
-      upcoming.sort((a, b) =>
-          (a['startTime'] as DateTime).compareTo(b['startTime'] as DateTime));
-      final limited = upcoming.take(3).toList();
-      if (mounted) setState(() => _upcomingReservations = limited);
-    } catch (_) {}
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: () async {
-                setState(() => _isLoading = true);
-                await _loadAll();
-              },
-              child: CustomScrollView(
+      backgroundColor: AppColors.background,
+      body: Stack(
+        children: [
+          const FallingResourcesBg(count: 18, globalOpacity: 0.7),
+          _isLoading
+              ? _buildSkeleton()
+              : RefreshIndicator(
+                  color: AppColors.primary,
+                  onRefresh: () async {
+                    setState(() => _isLoading = true);
+                    _fadeController.reset();
+                    _slideController.reset();
+                    _staggerController.reset();
+                    await _loadAll();
+                  },
+                  child: CustomScrollView(
                 slivers: [
-                  _buildAppBar(),
+                  _buildSliverAppBar(),
                   SliverPadding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
                     sliver: SliverList(
                       delegate: SliverChildListDelegate([
-                        _buildStatsRow(),
-                        const SizedBox(height: 20),
-                        _buildQuickActions(),
-                        const SizedBox(height: 20),
-                        _buildUpcomingSection(),
-                        const SizedBox(height: 80), // FAB space
+                        FadeTransition(
+                          opacity: _staggerAnim,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildStatsRow(),
+                              const SizedBox(height: 24),
+                              _buildQuickActions(),
+                              const SizedBox(height: 24),
+                              _buildUpcomingSection(),
+                            ],
+                          ),
+                        ),
                       ]),
                     ),
                   ),
                 ],
               ),
             ),
+        ],
+      ),
     );
   }
 
-  Widget _buildAppBar() {
+  Widget _buildSkeleton() {
+    return const Center(
+      child: CircularProgressIndicator(color: AppColors.primary),
+    );
+  }
+
+  Widget _buildSliverAppBar() {
     final greeting = _getGreeting();
     return SliverAppBar(
-      expandedHeight: 160,
+      expandedHeight: 170,
       floating: false,
       pinned: true,
-      backgroundColor: const Color(0xFF2563EB),
+      backgroundColor: AppColors.primary,
       flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF1D4ED8), Color(0xFF2563EB), Color(0xFF3B82F6)],
-            ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            greeting,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _userName ?? 'Utilisateur',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
+        background: SlideTransition(
+          position: _headerSlide,
+          child: Container(
+            decoration: const BoxDecoration(gradient: AppColors.gradientPrimary),
+            child: Stack(
+              children: [
+                // Cercle décoratif
+                Positioned(
+                  top: -30,
+                  right: -30,
+                  child: Container(
+                    width: 160,
+                    height: 160,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.06),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: -20,
+                  left: -20,
+                  child: Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.04),
+                    ),
+                  ),
+                ),
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Icon(_getRoleIcon(), color: Colors.white, size: 14),
-                            const SizedBox(width: 6),
-                            Text(
-                              _getRoleText(),
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(greeting,
+                                    style: TextStyle(
+                                        color: Colors.white.withOpacity(0.75),
+                                        fontSize: 14)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _userName ?? 'Utilisateur',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                              ],
                             ),
+                            _RoleBadge(role: _userRole),
                           ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        Text(
+                          DateFormat('EEEE d MMMM yyyy', 'fr_FR')
+                              .format(DateTime.now()),
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.6),
+                              fontSize: 12),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    DateFormat('EEEE d MMMM yyyy', 'fr_FR').format(DateTime.now()),
-                    style: const TextStyle(color: Colors.white60, fontSize: 12),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
       ),
       actions: [
-        // Bouton déconnexion rapide
         IconButton(
-          icon: const Icon(Icons.logout, color: Colors.white),
-          tooltip: 'Se déconnecter',
-          onPressed: () async {
-            final confirm = await showDialog<bool>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Déconnexion'),
-                content: const Text('Voulez-vous vraiment vous déconnecter ?'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('Annuler'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Déconnecter'),
-                  ),
-                ],
-              ),
-            );
-            if (confirm == true && mounted) {
-              await _authService.signOut();
-              if (mounted) {
-                Navigator.pushNamedAndRemoveUntil(
-                    context, '/login', (route) => false);
-              }
-            }
-          },
+          icon: const Icon(Icons.logout_rounded, color: Colors.white),
+          onPressed: _confirmLogout,
         ),
         Stack(
           children: [
@@ -299,16 +280,12 @@ class _HomePageState extends State<HomePage> {
                 child: Container(
                   padding: const EdgeInsets.all(3),
                   decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    '$_pendingCount',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold),
-                  ),
+                      color: AppColors.error, shape: BoxShape.circle),
+                  child: Text('$_pendingCount',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold)),
                 ),
               ),
           ],
@@ -321,29 +298,35 @@ class _HomePageState extends State<HomePage> {
     return Row(
       children: [
         Expanded(
-          child: _StatCard(
-            icon: Icons.inventory_2_outlined,
+          child: _AnimatedStatCard(
+            icon: Icons.inventory_2_rounded,
             label: 'Ressources',
             value: '$_totalResources',
-            color: const Color(0xFF2563EB),
+            color: AppColors.primary,
+            delay: 0,
+            controller: _staggerController,
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _StatCard(
-            icon: Icons.hourglass_empty,
+          child: _AnimatedStatCard(
+            icon: Icons.hourglass_top_rounded,
             label: 'En attente',
             value: '$_pendingCount',
-            color: const Color(0xFFF59E0B),
+            color: AppColors.warning,
+            delay: 100,
+            controller: _staggerController,
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _StatCard(
-            icon: Icons.check_circle_outline,
+          child: _AnimatedStatCard(
+            icon: Icons.check_circle_rounded,
             label: 'Confirmées',
             value: '$_confirmedCount',
-            color: const Color(0xFF10B981),
+            color: AppColors.success,
+            delay: 200,
+            controller: _staggerController,
           ),
         ),
       ],
@@ -354,18 +337,19 @@ class _HomePageState extends State<HomePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Actions rapides',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
+        const Text('Actions rapides',
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary)),
         const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              child: _QuickActionCard(
-                icon: Icons.search,
-                label: 'Trouver une\nressource',
-                color: const Color(0xFF2563EB),
+              child: _AnimatedActionCard(
+                icon: Icons.search_rounded,
+                label: 'Trouver\nune ressource',
+                gradient: AppColors.gradientPrimary,
                 onTap: () {
                   if (widget.onNavigate != null) {
                     widget.onNavigate!(1);
@@ -373,14 +357,16 @@ class _HomePageState extends State<HomePage> {
                     Navigator.pushNamed(context, '/resources');
                   }
                 },
+                delay: 50,
+                controller: _staggerController,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _QuickActionCard(
-                icon: Icons.calendar_month,
+              child: _AnimatedActionCard(
+                icon: Icons.calendar_month_rounded,
                 label: 'Voir le\ncalendrier',
-                color: const Color(0xFF7C3AED),
+                gradient: AppColors.gradientSecondary,
                 onTap: () {
                   if (widget.onNavigate != null) {
                     widget.onNavigate!(2);
@@ -388,14 +374,16 @@ class _HomePageState extends State<HomePage> {
                     Navigator.pushNamed(context, '/calendar');
                   }
                 },
+                delay: 150,
+                controller: _staggerController,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _QuickActionCard(
-                icon: Icons.bookmark,
+              child: _AnimatedActionCard(
+                icon: Icons.bookmark_rounded,
                 label: 'Mes\nréservations',
-                color: const Color(0xFF059669),
+                gradient: AppColors.gradientSuccess,
                 onTap: () {
                   if (widget.onNavigate != null) {
                     widget.onNavigate!(3);
@@ -403,6 +391,8 @@ class _HomePageState extends State<HomePage> {
                     Navigator.pushNamed(context, '/my_reservations');
                   }
                 },
+                delay: 250,
+                controller: _staggerController,
               ),
             ),
           ],
@@ -412,16 +402,20 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildUpcomingSection() {
+    final user = _authService.currentUser;
+    final now = DateTime.now();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Prochaines réservations',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
+            const Text('Prochaines réservations',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary)),
             TextButton(
               onPressed: () {
                 if (widget.onNavigate != null) {
@@ -430,45 +424,127 @@ class _HomePageState extends State<HomePage> {
                   Navigator.pushNamed(context, '/my_reservations');
                 }
               },
-              child: const Text('Voir tout'),
-            ),          ],
+              child: const Text('Voir tout',
+                  style: TextStyle(
+                      color: AppColors.primary, fontWeight: FontWeight.w600)),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
-        if (_upcomingReservations.isEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              children: [
-                Icon(Icons.event_available,
-                    size: 48, color: Colors.grey.shade300),
-                const SizedBox(height: 8),
-                Text(
-                  'Aucune réservation à venir',
-                  style: TextStyle(color: Colors.grey.shade500),
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: () {
-                    if (widget.onNavigate != null) {
-                      widget.onNavigate!(1);
-                    } else {
-                      Navigator.pushNamed(context, '/resources');
-                    }
-                  },
-                  child: const Text('Réserver maintenant'),
-                ),
-              ],
-            ),
-          )
+        if (user == null)
+          _EmptyUpcoming(onTap: () {
+            if (widget.onNavigate != null) {
+              widget.onNavigate!(1);
+            } else {
+              Navigator.pushNamed(context, '/resources');
+            }
+          })
         else
-          ...(_upcomingReservations.map((r) => _UpcomingCard(data: r))),
+          StreamBuilder<QuerySnapshot>(
+            stream: _firestore
+                .collection('reservations')
+                .where('userId', isEqualTo: user.uid)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(
+                      child: CircularProgressIndicator(
+                          color: AppColors.primary, strokeWidth: 2)),
+                );
+              }
+
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return _EmptyUpcoming(onTap: () {
+                  if (widget.onNavigate != null) {
+                    widget.onNavigate!(1);
+                  } else {
+                    Navigator.pushNamed(context, '/resources');
+                  }
+                });
+              }
+
+              // Filtrer : status pending/confirmed ET startTime dans le futur
+              final upcoming = snapshot.data!.docs
+                  .where((doc) {
+                    final d = doc.data() as Map<String, dynamic>;
+                    final status = d['status'] as String? ?? '';
+                    if (status != 'pending' && status != 'confirmed') {
+                      return false;
+                    }
+                    final rawStart = d['startTime'];
+                    if (rawStart is! Timestamp) return false;
+                    return rawStart.toDate().isAfter(now);
+                  })
+                  .map((doc) {
+                    final d = doc.data() as Map<String, dynamic>;
+                    final start = (d['startTime'] as Timestamp).toDate();
+                    final rawEnd = d['endTime'];
+                    final end = rawEnd is Timestamp
+                        ? rawEnd.toDate()
+                        : start.add(const Duration(hours: 1));
+                    final resourceName =
+                        (d['resourceName'] as String?)?.isNotEmpty == true
+                            ? d['resourceName'] as String
+                            : 'Ressource';
+                    return {
+                      'id': doc.id,
+                      'resourceName': resourceName,
+                      'startTime': start,
+                      'endTime': end,
+                      'status': d['status'] as String,
+                    };
+                  })
+                  .toList()
+                ..sort((a, b) => (a['startTime'] as DateTime)
+                    .compareTo(b['startTime'] as DateTime));
+
+              final limited = upcoming.take(3).toList();
+
+              if (limited.isEmpty) {
+                return _EmptyUpcoming(onTap: () {
+                  if (widget.onNavigate != null) {
+                    widget.onNavigate!(1);
+                  } else {
+                    Navigator.pushNamed(context, '/resources');
+                  }
+                });
+              }
+
+              return Column(
+                children: limited
+                    .asMap()
+                    .entries
+                    .map((e) => _AnimatedUpcomingCard(
+                          data: e.value,
+                          index: e.key,
+                          controller: _staggerController,
+                        ))
+                    .toList(),
+              );
+            },
+          ),
       ],
     );
+  }
+
+  Future<void> _confirmLogout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => _ConfirmDialog(
+        title: 'Déconnexion',
+        message: 'Voulez-vous vraiment vous déconnecter ?',
+        confirmLabel: 'Déconnecter',
+        confirmColor: AppColors.error,
+      ),
+    );
+    if (confirm == true && mounted) {
+      await _authService.signOut();
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
+      }
+    }
   }
 
   String _getGreeting() {
@@ -477,133 +553,109 @@ class _HomePageState extends State<HomePage> {
     if (h < 18) return 'Bon après-midi,';
     return 'Bonsoir,';
   }
-
-  IconData _getRoleIcon() {
-    switch (_userRole) {
-      case 'admin':
-        return Icons.shield;
-      case 'manager':
-        return Icons.manage_accounts;
-      default:
-        return Icons.person;
-    }
-  }
-
-  String _getRoleText() {
-    switch (_userRole) {
-      case 'admin':
-        return 'Admin';
-      case 'manager':
-        return 'Manager';
-      default:
-        return 'Utilisateur';
-    }
-  }
 }
 
-// ─── Composants internes ─────────────────────────────────────────────────────
+// ─── Widgets internes ─────────────────────────────────────────────────────────
 
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
+class _RoleBadge extends StatelessWidget {
+  final String? role;
+  const _RoleBadge({this.role});
 
   @override
   Widget build(BuildContext context) {
+    final (icon, label) = switch (role) {
+      'admin' => (Icons.shield_rounded, 'Admin'),
+      'manager' => (Icons.manage_accounts_rounded, 'Manager'),
+      _ => (Icons.person_rounded, 'Utilisateur'),
+    };
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: Colors.white.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.25)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: color, size: 18),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: color),
-          ),
-          Text(
-            label,
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-          ),
+          Icon(icon, color: Colors.white, size: 14),
+          const SizedBox(width: 6),
+          Text(label,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600)),
         ],
       ),
     );
   }
 }
 
-class _QuickActionCard extends StatelessWidget {
+class _AnimatedStatCard extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String value;
   final Color color;
-  final VoidCallback onTap;
+  final int delay;
+  final AnimationController controller;
 
-  const _QuickActionCard({
+  const _AnimatedStatCard({
     required this.icon,
     required this.label,
+    required this.value,
     required this.color,
-    required this.onTap,
+    required this.delay,
+    required this.controller,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (_, child) {
+        final t = Curves.easeOutBack.transform(
+          ((controller.value * 1000 - delay) / 600).clamp(0.0, 1.0),
+        );
+        return Transform.scale(
+          scale: 0.8 + 0.2 * t,
+          child: Opacity(opacity: t.clamp(0.0, 1.0), child: child),
+        );
+      },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [color, color.withOpacity(0.8)],
-          ),
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.3),
-              blurRadius: 12,
+              color: color.withOpacity(0.08),
+              blurRadius: 16,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: Colors.white, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 18),
             ),
+            const SizedBox(height: 10),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                    letterSpacing: -0.5)),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 11, color: AppColors.textTertiary)),
           ],
         ),
       ),
@@ -611,10 +663,113 @@ class _QuickActionCard extends StatelessWidget {
   }
 }
 
-class _UpcomingCard extends StatelessWidget {
-  final Map<String, dynamic> data;
+class _AnimatedActionCard extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final LinearGradient gradient;
+  final VoidCallback onTap;
+  final int delay;
+  final AnimationController controller;
 
-  const _UpcomingCard({required this.data});
+  const _AnimatedActionCard({
+    required this.icon,
+    required this.label,
+    required this.gradient,
+    required this.onTap,
+    required this.delay,
+    required this.controller,
+  });
+
+  @override
+  State<_AnimatedActionCard> createState() => _AnimatedActionCardState();
+}
+
+class _AnimatedActionCardState extends State<_AnimatedActionCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pressController;
+  late Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _pressController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 120));
+    _scaleAnim = Tween<double>(begin: 1.0, end: 0.94)
+        .animate(CurvedAnimation(parent: _pressController, curve: Curves.easeIn));
+  }
+
+  @override
+  void dispose() {
+    _pressController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: widget.controller,
+      builder: (_, child) {
+        final t = Curves.easeOutBack.transform(
+          ((widget.controller.value * 1000 - widget.delay) / 600)
+              .clamp(0.0, 1.0),
+        );
+        return Transform.translate(
+          offset: Offset(0, 20 * (1 - t)),
+          child: Opacity(opacity: t.clamp(0.0, 1.0), child: child),
+        );
+      },
+      child: GestureDetector(
+        onTapDown: (_) => _pressController.forward(),
+        onTapUp: (_) {
+          _pressController.reverse();
+          widget.onTap();
+        },
+        onTapCancel: () => _pressController.reverse(),
+        child: ScaleTransition(
+          scale: _scaleAnim,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
+            decoration: BoxDecoration(
+              gradient: widget.gradient,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.gradient.colors.first.withOpacity(0.25),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Icon(widget.icon, color: Colors.white, size: 28),
+                const SizedBox(height: 8),
+                Text(widget.label,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        height: 1.3)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AnimatedUpcomingCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final int index;
+  final AnimationController controller;
+
+  const _AnimatedUpcomingCard({
+    required this.data,
+    required this.index,
+    required this.controller,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -622,105 +777,190 @@ class _UpcomingCard extends StatelessWidget {
     final end = data['endTime'] as DateTime;
     final status = data['status'] as String;
     final isConfirmed = status == 'confirmed';
+    final statusColor = isConfirmed ? AppColors.success : AppColors.warning;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isConfirmed
-              ? const Color(0xFF10B981).withOpacity(0.3)
-              : const Color(0xFFF59E0B).withOpacity(0.3),
-          width: 1,
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (_, child) {
+        final delay = 300 + index * 100;
+        final t = Curves.easeOutCubic.transform(
+          ((controller.value * 1000 - delay) / 500).clamp(0.0, 1.0),
+        );
+        return Transform.translate(
+          offset: Offset(30 * (1 - t), 0),
+          child: Opacity(opacity: t.clamp(0.0, 1.0), child: child),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 4,
-            height: 50,
-            decoration: BoxDecoration(
-              color: isConfirmed
-                  ? const Color(0xFF10B981)
-                  : const Color(0xFFF59E0B),
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2563EB).withOpacity(0.08),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  DateFormat('d', 'fr_FR').format(start),
-                  style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF2563EB)),
-                ),
-                Text(
-                  DateFormat('MMM', 'fr_FR').format(start),
-                  style: const TextStyle(
-                      fontSize: 10, color: Color(0xFF2563EB)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  data['resourceName'] as String,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 14),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${DateFormat('HH:mm').format(start)} – ${DateFormat('HH:mm').format(end)}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: isConfirmed
-                  ? const Color(0xFF10B981).withOpacity(0.1)
-                  : const Color(0xFFF59E0B).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              isConfirmed ? 'Confirmée' : 'En attente',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: isConfirmed
-                    ? const Color(0xFF10B981)
-                    : const Color(0xFFF59E0B),
+        child: Row(
+          children: [
+            Container(
+              width: 4,
+              height: 52,
+              decoration: BoxDecoration(
+                color: statusColor,
+                borderRadius: BorderRadius.circular(4),
               ),
             ),
+            const SizedBox(width: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.primarySurface,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Text(DateFormat('d', 'fr_FR').format(start),
+                      style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary)),
+                  Text(DateFormat('MMM', 'fr_FR').format(start),
+                      style: const TextStyle(
+                          fontSize: 10,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(data['resourceName'] as String,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: AppColors.textPrimary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.access_time_rounded,
+                          size: 12, color: AppColors.textTertiary),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${DateFormat('HH:mm').format(start)} – ${DateFormat('HH:mm').format(end)}',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                isConfirmed ? 'Confirmée' : 'En attente',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: statusColor),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyUpcoming extends StatelessWidget {
+  final VoidCallback onTap;
+  const _EmptyUpcoming({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.event_available_rounded,
+                size: 36, color: AppColors.primary),
+          ),
+          const SizedBox(height: 12),
+          const Text('Aucune réservation à venir',
+              style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w500)),
+          const SizedBox(height: 14),
+          ElevatedButton(
+            onPressed: onTap,
+            child: const Text('Réserver maintenant'),
           ),
         ],
       ),
     );
   }
 }
-// update home UI
+
+class _ConfirmDialog extends StatelessWidget {
+  final String title;
+  final String message;
+  final String confirmLabel;
+  final Color confirmColor;
+
+  const _ConfirmDialog({
+    required this.title,
+    required this.message,
+    required this.confirmLabel,
+    required this.confirmColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(title,
+          style: const TextStyle(fontWeight: FontWeight.bold)),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Annuler',
+              style: TextStyle(color: AppColors.textSecondary)),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: ElevatedButton.styleFrom(
+              backgroundColor: confirmColor, foregroundColor: Colors.white),
+          child: Text(confirmLabel),
+        ),
+      ],
+    );
+  }
+}

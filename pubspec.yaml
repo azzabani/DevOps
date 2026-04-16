@@ -30,6 +30,11 @@ dependencies:
   path_provider: ^2.1.4
   share_plus: ^10.0.0
 
+  # Upload image Cloudinary
+  image_picker: ^1.1.2
+  http: ^1.2.2
+  google_fonts: ^6.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

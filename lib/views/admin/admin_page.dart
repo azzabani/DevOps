@@ -6,6 +6,8 @@ import 'package:flutter_booking/views/admin/admin_resource_page.dart';
 import 'package:flutter_booking/views/admin/admin_users_page.dart';
 import 'package:flutter_booking/views/admin/admin_validate_page.dart';
 import 'package:flutter_booking/views/admin/admin_reservations_page.dart';
+import 'package:flutter_booking/theme/app_theme.dart';
+import 'package:flutter_booking/widgets/falling_resources_bg.dart';
 
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
@@ -51,39 +53,57 @@ class _AdminPageState extends State<AdminPage>
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(
+            child: CircularProgressIndicator(color: AppColors.primary)),
       );
     }
 
     final isAdmin = _userRole == 'admin';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(isAdmin ? 'Administration' : 'Espace Manager'),
-        backgroundColor: const Color(0xFF1D4ED8),
+        backgroundColor: AppColors.primaryDark,
         foregroundColor: Colors.white,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(gradient: AppColors.gradientPrimary),
+        ),
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
+          indicatorWeight: 3,
           labelColor: Colors.white,
-          unselectedLabelColor: Colors.white60,
+          unselectedLabelColor: Colors.white54,
           isScrollable: isAdmin,
+          labelStyle: const TextStyle(
+              fontFamily: 'Poppins',
+              fontWeight: FontWeight.w600,
+              fontSize: 12),
           tabs: isAdmin
               ? const [
-                  Tab(icon: Icon(Icons.dashboard_outlined), text: 'Dashboard'),
-                  Tab(icon: Icon(Icons.inventory_2_outlined), text: 'Ressources'),
-                  Tab(icon: Icon(Icons.people_outline), text: 'Utilisateurs'),
-                  Tab(icon: Icon(Icons.pending_actions), text: 'Validation'),
-                  Tab(icon: Icon(Icons.list_alt), text: 'Toutes'),
+                  Tab(icon: Icon(Icons.dashboard_rounded), text: 'Dashboard'),
+                  Tab(
+                      icon: Icon(Icons.inventory_2_rounded),
+                      text: 'Ressources'),
+                  Tab(icon: Icon(Icons.people_rounded), text: 'Utilisateurs'),
+                  Tab(
+                      icon: Icon(Icons.pending_actions_rounded),
+                      text: 'Validation'),
+                  Tab(icon: Icon(Icons.list_alt_rounded), text: 'Toutes'),
                 ]
               : const [
-                  Tab(icon: Icon(Icons.pending_actions), text: 'À valider'),
-                  Tab(icon: Icon(Icons.list_alt), text: 'Toutes'),
+                  Tab(
+                      icon: Icon(Icons.pending_actions_rounded),
+                      text: 'À valider'),
+                  Tab(icon: Icon(Icons.list_alt_rounded), text: 'Toutes'),
                 ],
         ),
       ),
-      body: TabBarView(
+      body: Stack(
+        children: [
+          const FallingResourcesBg(count: 14, globalOpacity: 0.55),
+          TabBarView(
         controller: _tabController,
         children: isAdmin
             ? const [
@@ -97,6 +117,8 @@ class _AdminPageState extends State<AdminPage>
                 AdminValidatePage(),
                 AdminReservationsPage(),
               ],
+          ),
+        ],
       ),
     );
   }

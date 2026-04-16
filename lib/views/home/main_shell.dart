@@ -11,6 +11,8 @@ import 'package:flutter_booking/views/calendar/my_reservations_page.dart';
 import 'package:flutter_booking/views/notifications/notifications_page.dart';
 import 'package:flutter_booking/views/profile/profile_page.dart';
 import 'package:flutter_booking/widgets/notification_badge.dart';
+import 'package:flutter_booking/theme/app_theme.dart';
+import 'package:flutter_booking/widgets/app_logo.dart';
 
 class MainShell extends StatefulWidget {
   final int initialIndex;
@@ -121,15 +123,28 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final pages = _pages;
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: pages.map((p) => p.page).toList(),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, anim) => FadeTransition(
+          opacity: anim,
+          child: child,
+        ),
+        child: KeyedSubtree(
+          key: ValueKey(_currentIndex),
+          child: pages[_currentIndex].page,
+        ),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
+          color: AppColors.surface,
+          border: const Border(
+            top: BorderSide(color: AppColors.border, width: 1),
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withOpacity(0.06),
               blurRadius: 20,
               offset: const Offset(0, -4),
             ),
@@ -138,30 +153,32 @@ class _MainShellState extends State<MainShell> {
         child: NavigationBar(
           selectedIndex: _currentIndex,
           onDestinationSelected: (i) => setState(() => _currentIndex = i),
-          backgroundColor: Colors.white,
-          indicatorColor: const Color(0xFF2563EB).withOpacity(0.12),
+          backgroundColor: AppColors.surface,
+          indicatorColor: AppColors.primarySurface,
+          elevation: 0,
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
           destinations: _buildDestinations(pages),
         ),
       ),
-      // FAB uniquement pour admin (pas manager)
       floatingActionButton: _userRole == 'admin'
           ? FloatingActionButton.extended(
               onPressed: () => Navigator.pushNamed(context, '/admin'),
-              icon: const Icon(Icons.admin_panel_settings),
-              label: const Text('Admin'),
-              backgroundColor: const Color(0xFF2563EB),
+              icon: const Icon(Icons.admin_panel_settings_rounded),
+              label: const Text('Admin',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
-              elevation: 3,
+              elevation: 4,
             )
           : _userRole == 'manager'
               ? FloatingActionButton.extended(
                   onPressed: () => Navigator.pushNamed(context, '/admin'),
-                  icon: const Icon(Icons.manage_accounts),
-                  label: const Text('Manager'),
-                  backgroundColor: const Color(0xFF7C3AED),
+                  icon: const Icon(Icons.manage_accounts_rounded),
+                  label: const Text('Manager',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  backgroundColor: AppColors.secondary,
                   foregroundColor: Colors.white,
-                  elevation: 3,
+                  elevation: 4,
                 )
               : null,
     );

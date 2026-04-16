@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:flutter_booking/models/reservation_model.dart';
+import 'package:flutter_booking/theme/app_theme.dart';
 
 class CalendarWidget extends StatelessWidget {
   final DateTime focusedDay;
@@ -32,8 +33,12 @@ class CalendarWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      color: AppColors.surface,
       child: Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: TableCalendar(
@@ -46,45 +51,54 @@ class CalendarWidget extends StatelessWidget {
           calendarFormat: CalendarFormat.month,
           startingDayOfWeek: StartingDayOfWeek.monday,
           locale: 'fr_FR',
-          headerStyle: HeaderStyle(
+          headerStyle: const HeaderStyle(
             formatButtonVisible: false,
             titleCentered: true,
             titleTextStyle: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 16,
-              color: Colors.blue.shade800,
+              color: AppColors.textPrimary,
+              fontFamily: 'Poppins',
             ),
-            leftChevronIcon: Icon(Icons.chevron_left, color: Colors.blue.shade600),
-            rightChevronIcon: Icon(Icons.chevron_right, color: Colors.blue.shade600),
+            leftChevronIcon:
+                Icon(Icons.chevron_left_rounded, color: AppColors.primary),
+            rightChevronIcon:
+                Icon(Icons.chevron_right_rounded, color: AppColors.primary),
           ),
           calendarStyle: CalendarStyle(
             todayDecoration: BoxDecoration(
-              color: Colors.blue.shade100,
+              color: AppColors.primarySurface,
               shape: BoxShape.circle,
+              border: Border.all(color: AppColors.primary, width: 1.5),
             ),
-            todayTextStyle: TextStyle(
-              color: Colors.blue.shade800,
+            todayTextStyle: const TextStyle(
+              color: AppColors.primary,
               fontWeight: FontWeight.bold,
             ),
-            selectedDecoration: BoxDecoration(
-              color: Colors.blue.shade700,
+            selectedDecoration: const BoxDecoration(
+              color: AppColors.primary,
               shape: BoxShape.circle,
             ),
-            selectedTextStyle: const TextStyle(color: Colors.white),
-            markerDecoration: BoxDecoration(
-              color: Colors.orange.shade600,
+            selectedTextStyle: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold),
+            markerDecoration: const BoxDecoration(
+              color: AppColors.warning,
               shape: BoxShape.circle,
             ),
             outsideDaysVisible: false,
+            weekendTextStyle:
+                const TextStyle(color: AppColors.error),
+            defaultTextStyle:
+                const TextStyle(color: AppColors.textPrimary),
           ),
-          daysOfWeekStyle: DaysOfWeekStyle(
+          daysOfWeekStyle: const DaysOfWeekStyle(
             weekdayStyle: TextStyle(
-              color: Colors.grey.shade700,
+              color: AppColors.textSecondary,
               fontWeight: FontWeight.w600,
               fontSize: 12,
             ),
             weekendStyle: TextStyle(
-              color: Colors.red.shade300,
+              color: AppColors.error,
               fontWeight: FontWeight.w600,
               fontSize: 12,
             ),

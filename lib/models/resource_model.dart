@@ -18,10 +18,14 @@ class ResourceModel {
 
   // Méthode pour obtenir le chemin de l'image
   String getImagePath() {
+    // Image Cloudinary ou URL externe
+    if (image.isNotEmpty && image.startsWith('http')) {
+      return image;
+    }
+    // Image locale assets
     if (image.isNotEmpty && image.startsWith('assets/')) {
       return image;
     }
-    
     // Images par défaut selon la catégorie
     switch (category.toLowerCase()) {
       case 'salle':
@@ -35,6 +39,29 @@ class ResourceModel {
       default:
         return 'assets/images/default.png';
     }
+  }
+
+  bool get isNetworkImage => image.startsWith('http');
+
+  // ── Label de capacité adapté à la catégorie ──────────────────────────────
+  String get capacityLabel {
+    final cat = category.toLowerCase();
+    if (cat == 'salle' || cat == 'véhicule') {
+      return '$capacity ${capacity > 1 ? "personnes" : "personne"}';
+    }
+    if (cat == 'ordinateur' || cat == 'matériel') {
+      return 'Quantité : $capacity';
+    }
+    return '$capacity disponible${capacity > 1 ? "s" : ""}';
+  }
+
+  // Icône de capacité selon la catégorie
+  IconData get capacityIcon {
+    final cat = category.toLowerCase();
+    if (cat == 'salle' || cat == 'véhicule') {
+      return Icons.group_rounded;
+    }
+    return Icons.inventory_rounded;
   }
 
   // Convertir vers Firestore

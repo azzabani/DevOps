@@ -1,5 +1,6 @@
 // lib/widgets/notification_badge.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_booking/theme/app_theme.dart';
 
 class NotificationBadge extends StatelessWidget {
   final Widget child;
@@ -22,14 +23,22 @@ class NotificationBadge extends StatelessWidget {
       children: [
         child,
         Positioned(
-          top: -4,
-          right: -4,
+          top: -5,
+          right: -5,
           child: Container(
-            padding: const EdgeInsets.all(2),
-            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-            decoration: const BoxDecoration(
-              color: Colors.red,
+            padding: const EdgeInsets.all(3),
+            constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+            decoration: BoxDecoration(
+              color: AppColors.error,
               shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.error.withOpacity(0.4),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Text(
               label,

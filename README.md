@@ -1,81 +1,150 @@
-# 📦 FlutterBooking — Améliorations UI & Fonctionnalités
+# 📱 FlutterBooking — SUP4 DEV
 
-## 🆕 Fichiers à remplacer / ajouter
-
-### Nouveaux fichiers (créer)
-| Chemin | Description |
-|--------|-------------|
-| `lib/views/home/main_shell.dart` | **NOUVEAU** — Shell avec Bottom Navigation Bar (5 onglets) |
-| `lib/views/calendar/edit_reservation_page.dart` | **NOUVEAU** — Page modification d'une réservation (manquait dans le CDC) |
-
-### Fichiers à remplacer
-| Chemin | Changements |
-|--------|-------------|
-| `lib/main.dart` | Routes vers `MainShell` + nouvelle route `/edit_reservation` |
-| `lib/views/home/home_page.dart` | Dashboard moderne avec SliverAppBar, stats cards, "Prochaines réservations" |
-| `lib/views/calendar/my_reservations_page.dart` | Onglets À venir / En attente / Historique + bouton **Modifier** |
-| `lib/views/admin/admin_page.dart` | 4 onglets : Dashboard / Ressources / Validation / Toutes |
-| `lib/views/admin/admin_dashboard_page.dart` | Dashboard avec graphiques : barres hebdo, statuts, top ressources, récentes |
+Application mobile Flutter de réservation de ressources partagées (salles de réunion, véhicules, ordinateurs, matériels divers) avec interface calendrier et gestion des rôles.
 
 ---
 
-## ✅ Ce qui est corrigé / ajouté vs cahier des charges
+## 🎯 Objectif
 
-### 1. Navigation (Bottom Navigation Bar)
-- Avant : page Home avec liste de boutons
-- Après : `NavigationBar` Material 3 avec 5 destinations permanentes
-- FAB "Admin" visible uniquement pour admin/manager
-
-### 2. Modification de réservation (CDC : "Annulation/modification possible")
-- Avant : seulement annulation
-- Après : bouton Modifier → `EditReservationPage` avec calendrier + créneaux
-- La modification remet le statut à `pending` (besoin de re-validation)
-- Notification in-app envoyée à l'utilisateur
-
-### 3. Home Dashboard
-- Gradient AppBar avec heure de la journée (Bonjour / Bon après-midi / Bonsoir)
-- 3 stat cards : Ressources / En attente / Confirmées
-- 3 quick actions avec couleurs distinctes
-- Section "Prochaines réservations" avec vraies données Firestore
-
-### 4. Mes réservations avec onglets
-- Onglet "À venir" : confirmées dans le futur
-- Onglet "En attente" : pending
-- Onglet "Historique" : annulées/rejetées
-- Cards avec indicateur couleur selon statut
-- Boutons Modifier + Annuler sur les réservations actives
-
-### 5. Dashboard Admin avec graphiques
-- Vue d'ensemble : 6 indicateurs KPI
-- Graphique barres : réservations 7 derniers jours
-- Répartition statuts (progress bars)
-- Top 5 ressources les plus demandées
-- Liste des 5 réservations les plus récentes
+Permettre aux utilisateurs de réserver des ressources d'entreprise via une interface intuitive avec visualisation calendrier des disponibilités, gestion des conflits en temps réel et workflow de validation par un manager.
 
 ---
 
-## 🛠️ Instructions d'intégration
+## ✅ Fonctionnalités implémentées
+
+### Authentification & Rôles
+- Inscription / Connexion avec Firebase Auth
+- 3 rôles : **Utilisateur**, **Manager**, **Administrateur**
+- Récupération de mot de passe par email
+- Gestion du profil (nom, email, mot de passe)
+
+### Catalogue de ressources
+- Liste complète avec filtre par catégorie (salle, véhicule, ordinateur, matériel)
+- Filtre par capacité (slider)
+- Affichage : image, nom, description, capacité
+- CRUD ressources (admin uniquement)
+
+### Réservation
+- Vue calendrier des créneaux disponibles (`table_calendar`)
+- Sélection d'un jour et d'un créneau horaire (08h–17h)
+- Vérification des conflits en temps réel
+- Workflow de validation par un manager (statut `pending` → `confirmed`)
+- Annulation et modification possible par l'utilisateur
+- Export PDF de confirmation
+- Export iCal (.ics)
+
+### Notifications in-app
+- Confirmation de réservation
+- Annulation de réservation
+- Validation ou refus par un manager (avec motif)
+- Badge de notifications non lues
+
+### Espace Manager
+- Liste des réservations à valider (En attente / Confirmées / Rejetées / Toutes)
+- Validation avec confirmation
+- Rejet avec motif optionnel
+
+### Espace Administrateur
+- Dashboard avec statistiques (total, statuts, top ressources, graphique hebdomadaire)
+- CRUD complet des ressources
+- Gestion des utilisateurs (liste, modification de rôle, désactivation, suppression)
+- Validation des réservations
+
+---
+
+## 🏗️ Architecture
+
+```
+lib/
+├── models/           # UserModel, ResourceModel, ReservationModel, NotificationModel
+├── services/         # AuthService, ReservationService, NotificationService, PdfService, ICalService
+├── providers/        # UserAuthProvider, ResourceProvider, CalendarProvider
+├── views/
+│   ├── auth/         # LoginPage, SignupPage
+│   ├── home/         # HomePage, MainShell
+│   ├── calendar/     # BookingPage, CalendarPage, MyReservationsPage, EditReservationPage
+│   ├── resources/    # ResourcesPage, ResourceDetailPage
+│   ├── notifications/# NotificationsPage
+│   ├── profile/      # ProfilePage
+│   └── admin/        # AdminPage, AdminDashboardPage, AdminResourcePage, AdminUsersPage, AdminValidatePage
+├── widgets/          # NotificationBadge, CalendarWidget, ResourceCard, ReservationModal
+└── main.dart
+```
+
+Architecture **Clean / MVC** avec séparation stricte : les vues ne communiquent jamais directement avec Firestore, tout passe par les services.
+
+---
+
+## 🛠️ Stack technique
+
+| Technologie | Usage |
+|-------------|-------|
+| Flutter 3.x | Framework mobile |
+| Firebase Auth | Authentification |
+| Cloud Firestore | Base de données temps réel |
+| Provider | Gestion d'état |
+| table_calendar | Interface calendrier |
+| pdf + printing | Génération PDF |
+| share_plus | Partage fichiers |
+| intl | Internationalisation (fr_FR) |
+
+---
+
+## 🚀 Installation
 
 ```bash
-# 1. Copier les fichiers dans ton projet
-cp main.dart lib/main.dart
-cp main_shell.dart lib/views/home/main_shell.dart
-cp home_page.dart lib/views/home/home_page.dart
-cp my_reservations_page.dart lib/views/calendar/my_reservations_page.dart
-cp edit_reservation_page.dart lib/views/calendar/edit_reservation_page.dart
-cp admin_page.dart lib/views/admin/admin_page.dart
-cp admin_dashboard_page.dart lib/views/admin/admin_dashboard_page.dart
+# 1. Cloner le projet
+git clone <repo-url>
+cd flutter_booking
 
-# 2. Vérifier les imports dans main.dart
-# → Supprimer les imports des anciennes pages non utilisées
-#   (calendar_page, my_reservations_page sont maintenant dans MainShell)
+# 2. Installer les dépendances
+flutter pub get
 
-# 3. Hot restart
+# 3. Configurer Firebase
+# → Ajouter google-services.json (Android) et GoogleService-Info.plist (iOS)
+# → Ou utiliser le fichier firebase_options.dart existant
+
+# 4. Lancer l'application
 flutter run
 ```
 
-## ⚠️ Notes importantes
+---
 
-- `CalendarPage`, `ProfilePage`, `NotificationsPage` et `ResourcesPage` **sont maintenant dans le MainShell** (bottom nav), pas besoin de les garder dans les routes sauf pour la navigation directe.
-- La route `/notifications` reste accessible via l'icône cloche dans la AppBar de Home.
-- L'`AuthWrapper` redirige maintenant vers `MainShell` au lieu de `HomePage`.
+## 🎨 Maquette
+
+L'interface suit un design Material 3 avec :
+- Navigation bottom bar (6 onglets)
+- AppBar gradient bleu avec informations utilisateur
+- Cards avec indicateurs de statut colorés
+- Calendrier interactif avec créneaux visuels
+
+---
+
+## 🏆 Bonus implémentés
+
+- ✅ Dashboard admin avec statistiques et graphiques
+- ✅ PDF de confirmation (généré avec le package `pdf`)
+- ✅ Export iCal / intégration calendrier (.ics RFC 5545)
+- ✅ Gestion complète des utilisateurs (admin)
+
+---
+
+## 📊 Critères de validation
+
+| Critère | Statut |
+|---------|--------|
+| UI claire et responsive | ✅ Material 3, bottom nav |
+| Auth + rôles | ✅ user / manager / admin |
+| Catalogue ressources | ✅ avec filtres |
+| Calendrier + réservation | ✅ table_calendar |
+| Gestion des conflits | ✅ temps réel |
+| Notifications | ✅ in-app avec badge |
+| Modification/annulation | ✅ |
+| Documentation README | ✅ |
+
+---
+
+## 👥 Projet
+
+**SUP4 DEV — Projet Flutter 03**  
+Application de réservation de ressources — FlutterBooking

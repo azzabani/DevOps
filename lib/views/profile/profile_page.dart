@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_booking/services/auth_service.dart';
+import 'package:flutter_booking/theme/app_theme.dart';
+import 'package:flutter_booking/widgets/falling_resources_bg.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -11,7 +13,8 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+class _ProfilePageState extends State<ProfilePage>
+    with SingleTickerProviderStateMixin {
   final AuthService _authService = AuthService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -30,14 +33,27 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _obscureNew = true;
   bool _obscureConfirm = true;
 
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
+
   @override
   void initState() {
     super.initState();
+    _animController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600));
+    _fadeAnim =
+        CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _slideAnim = Tween<Offset>(
+            begin: const Offset(0, 0.1), end: Offset.zero)
+        .animate(CurvedAnimation(
+            parent: _animController, curve: Curves.easeOutCubic));
     _loadProfile();
   }
 
   @override
   void dispose() {
+    _animController.dispose();
     _nameController.dispose();
     _emailController.dispose();
     _currentPasswordController.dispose();
@@ -57,6 +73,7 @@ class _ProfilePageState extends State<ProfilePage> {
         _emailController.text = user.email ?? '';
         _userRole = data['role'] ?? 'user';
       });
+      _animController.forward();
     }
   }
 
@@ -236,11 +253,11 @@ class _ProfilePageState extends State<ProfilePage> {
   Color get _roleColor {
     switch (_userRole) {
       case 'admin':
-        return Colors.red;
+        return AppColors.error;
       case 'manager':
-        return Colors.orange;
+        return AppColors.warning;
       default:
-        return Colors.blue;
+        return AppColors.primary;
     }
   }
 
@@ -255,304 +272,459 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  IconData get _roleIcon {
+    switch (_userRole) {
+      case 'admin':
+        return Icons.shield_rounded;
+      case 'manager':
+        return Icons.manage_accounts_rounded;
+      default:
+        return Icons.person_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Mon profil'),
-        backgroundColor: Colors.blue.shade700,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
+        elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(gradient: AppColors.gradientPrimary),
+        ),
         actions: [
           if (!_isEditing)
             IconButton(
-              icon: const Icon(Icons.edit),
+              icon: const Icon(Icons.edit_rounded),
               tooltip: 'Modifier',
               onPressed: () => setState(() => _isEditing = true),
             )
           else
             TextButton(
               onPressed: () => setState(() => _isEditing = false),
-              child: const Text('Annuler', style: TextStyle(color: Colors.white)),
+              child: const Text('Annuler',
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w600)),
             ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    // Avatar
-                    Center(
-                      child: Stack(
-                        children: [
-                          CircleAvatar(
-                            radius: 55,
-                            backgroundColor: Colors.blue.shade100,
-                            child: Text(
-                              _nameController.text.isNotEmpty
-                                  ? _nameController.text[0].toUpperCase()
-                                  : 'U',
-                              style: TextStyle(
-                                fontSize: 48,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue.shade700,
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: _roleColor,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                _roleLabel,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+      body: Stack(
+        children: [
+          const FallingResourcesBg(count: 16, globalOpacity: 0.65),
+          _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary))
+          : FadeTransition(
+              opacity: _fadeAnim,
+              child: SlideTransition(
+                position: _slideAnim,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        // Avatar
+                        _buildAvatar(),
+                        const SizedBox(height: 28),
+
+                        _buildSection('Informations personnelles'),
+                        const SizedBox(height: 14),
+
+                        _buildField(
+                          controller: _nameController,
+                          label: 'Nom complet',
+                          icon: Icons.person_outline_rounded,
+                          enabled: _isEditing,
+                          validator: (v) => v == null || v.trim().isEmpty
+                              ? 'Champ requis'
+                              : null,
+                        ),
+                        const SizedBox(height: 14),
+
+                        _buildField(
+                          controller: _emailController,
+                          label: 'Email',
+                          icon: Icons.email_outlined,
+                          enabled: _isEditing,
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty)
+                              return 'Champ requis';
+                            if (!v.contains('@')) return 'Email invalide';
+                            return null;
+                          },
+                        ),
+
+                        if (_isEditing) ...[
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _saveProfile,
+                              icon: const Icon(Icons.save_rounded),
+                              label: const Text('Sauvegarder'),
                             ),
                           ),
                         ],
-                      ),
-                    ),
 
-                    const SizedBox(height: 32),
+                        const SizedBox(height: 28),
+                        const Divider(),
+                        const SizedBox(height: 20),
 
-                    _SectionTitle('Informations personnelles'),
-                    const SizedBox(height: 16),
+                        _buildSection('Sécurité'),
+                        const SizedBox(height: 14),
 
-                    TextFormField(
-                      controller: _nameController,
-                      enabled: _isEditing,
-                      decoration: _inputDecoration(
-                        label: 'Nom complet',
-                        icon: Icons.person_outline,
-                      ),
-                      validator: (v) => v == null || v.trim().isEmpty ? 'Champ requis' : null,
-                    ),
-                    const SizedBox(height: 16),
-
-                    TextFormField(
-                      controller: _emailController,
-                      enabled: _isEditing,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: _inputDecoration(
-                        label: 'Email',
-                        icon: Icons.email_outlined,
-                      ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Champ requis';
-                        if (!v.contains('@')) return 'Email invalide';
-                        return null;
-                      },
-                    ),
-
-                    if (_isEditing) ...[
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _saveProfile,
-                          icon: const Icon(Icons.save),
-                          label: const Text('Sauvegarder'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue.shade700,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
+                        // Changer mot de passe
+                        _buildExpandableSection(
+                          icon: Icons.lock_outline_rounded,
+                          title: 'Changer le mot de passe',
+                          isExpanded: _showPasswordSection,
+                          onTap: () => setState(
+                              () => _showPasswordSection = !_showPasswordSection),
+                          child: _buildPasswordFields(),
                         ),
-                      ),
-                    ],
 
-                    const SizedBox(height: 32),
-                    const Divider(),
-                    const SizedBox(height: 16),
+                        const SizedBox(height: 20),
 
-                    _SectionTitle('Sécurité'),
-                    const SizedBox(height: 16),
-
-                    GestureDetector(
-                      onTap: () => setState(() => _showPasswordSection = !_showPasswordSection),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade200),
+                        // Supprimer compte
+                        _buildDangerButton(
+                          icon: Icons.delete_forever_rounded,
+                          label: 'Supprimer mon compte',
+                          onTap: _deleteAccount,
                         ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.lock_outline, color: Colors.grey.shade600),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Text(
-                                'Changer le mot de passe',
-                                style: TextStyle(fontWeight: FontWeight.w500),
-                              ),
+
+                        const SizedBox(height: 12),
+
+                        // Déconnexion
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _confirmLogout,
+                            icon: const Icon(Icons.logout_rounded),
+                            label: const Text('Se déconnecter'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.error,
+                              foregroundColor: Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
                             ),
-                            Icon(
-                              _showPasswordSection ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                              color: Colors.grey.shade600,
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
+
+                        const SizedBox(height: 40),
+                      ],
                     ),
-
-                    if (_showPasswordSection) ...[
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _currentPasswordController,
-                        obscureText: _obscureCurrent,
-                        decoration: _inputDecoration(
-                          label: 'Mot de passe actuel',
-                          icon: Icons.lock_outline,
-                          suffix: IconButton(
-                            icon: Icon(_obscureCurrent ? Icons.visibility_off : Icons.visibility),
-                            onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _newPasswordController,
-                        obscureText: _obscureNew,
-                        decoration: _inputDecoration(
-                          label: 'Nouveau mot de passe',
-                          icon: Icons.lock_reset,
-                          suffix: IconButton(
-                            icon: Icon(_obscureNew ? Icons.visibility_off : Icons.visibility),
-                            onPressed: () => setState(() => _obscureNew = !_obscureNew),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _confirmPasswordController,
-                        obscureText: _obscureConfirm,
-                        decoration: _inputDecoration(
-                          label: 'Confirmer le nouveau mot de passe',
-                          icon: Icons.lock_reset,
-                          suffix: IconButton(
-                            icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility),
-                            onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _changePassword,
-                          icon: const Icon(Icons.lock),
-                          label: const Text('Modifier le mot de passe'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange.shade700,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                        ),
-                      ),
-                    ],
-
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _deleteAccount,
-                        icon: const Icon(Icons.delete_forever),
-                        label: const Text('Supprimer mon compte'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          side: const BorderSide(color: Colors.red),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Bouton déconnexion
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          final confirm = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('Déconnexion'),
-                              content: const Text('Voulez-vous vraiment vous déconnecter ?'),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: const Text('Annuler'),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () => Navigator.pop(ctx, true),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  child: const Text('Déconnecter'),
-                                ),
-                              ],
-                            ),
-                          );
-                          if (confirm == true && mounted) {
-                            await _authService.signOut();
-                            if (mounted) {
-                              Navigator.pushNamedAndRemoveUntil(
-                                  context, '/login', (route) => false);
-                            }
-                          }
-                        },
-                        icon: const Icon(Icons.logout),
-                        label: const Text('Se déconnecter'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade600,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 40),
-                  ],
+                  ),
                 ),
               ),
-            ),
+          ),
+        ],
+      ),
     );
   }
 
-  InputDecoration _inputDecoration({
+  Widget _buildAvatar() {
+    final initial = _nameController.text.isNotEmpty
+        ? _nameController.text[0].toUpperCase()
+        : 'U';
+    return Center(
+      child: Stack(
+        children: [
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_roleColor, _roleColor.withOpacity(0.7)],
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: _roleColor.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Text(
+                initial,
+                style: const TextStyle(
+                  fontSize: 42,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: _roleColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(_roleIcon, color: Colors.white, size: 10),
+                  const SizedBox(width: 4),
+                  Text(
+                    _roleLabel,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSection(String title) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.bold,
+          color: AppColors.textPrimary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildField({
+    required TextEditingController controller,
     required String label,
     required IconData icon,
+    bool enabled = true,
+    TextInputType? keyboardType,
+    bool obscure = false,
     Widget? suffix,
+    String? Function(String?)? validator,
   }) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon),
-      suffixIcon: suffix,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
+    return TextFormField(
+      controller: controller,
+      enabled: enabled,
+      keyboardType: keyboardType,
+      obscureText: obscure,
+      style: const TextStyle(
+          color: AppColors.textPrimary, fontSize: 14),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon,
+            color: enabled ? AppColors.primary : AppColors.textTertiary,
+            size: 20),
+        suffixIcon: suffix,
+        filled: true,
+        fillColor: enabled ? AppColors.surfaceVariant : AppColors.borderLight,
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
       ),
-      filled: true,
-      fillColor: Colors.grey.shade50,
+      validator: validator,
     );
+  }
+
+  Widget _buildExpandableSection({
+    required IconData icon,
+    required String title,
+    required bool isExpanded,
+    required VoidCallback onTap,
+    required Widget child,
+  }) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySurface,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: AppColors.primary, size: 18),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(title,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary)),
+                ),
+                AnimatedRotation(
+                  turns: isExpanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: const Icon(Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textTertiary),
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          child: isExpanded
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: child,
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPasswordFields() {
+    return Column(
+      children: [
+        _buildField(
+          controller: _currentPasswordController,
+          label: 'Mot de passe actuel',
+          icon: Icons.lock_outline_rounded,
+          obscure: _obscureCurrent,
+          suffix: IconButton(
+            icon: Icon(
+              _obscureCurrent
+                  ? Icons.visibility_off_rounded
+                  : Icons.visibility_rounded,
+              color: AppColors.textTertiary,
+              size: 20,
+            ),
+            onPressed: () =>
+                setState(() => _obscureCurrent = !_obscureCurrent),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildField(
+          controller: _newPasswordController,
+          label: 'Nouveau mot de passe',
+          icon: Icons.lock_reset_rounded,
+          obscure: _obscureNew,
+          suffix: IconButton(
+            icon: Icon(
+              _obscureNew
+                  ? Icons.visibility_off_rounded
+                  : Icons.visibility_rounded,
+              color: AppColors.textTertiary,
+              size: 20,
+            ),
+            onPressed: () => setState(() => _obscureNew = !_obscureNew),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildField(
+          controller: _confirmPasswordController,
+          label: 'Confirmer le mot de passe',
+          icon: Icons.lock_reset_rounded,
+          obscure: _obscureConfirm,
+          suffix: IconButton(
+            icon: Icon(
+              _obscureConfirm
+                  ? Icons.visibility_off_rounded
+                  : Icons.visibility_rounded,
+              color: AppColors.textTertiary,
+              size: 20,
+            ),
+            onPressed: () =>
+                setState(() => _obscureConfirm = !_obscureConfirm),
+          ),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _changePassword,
+            icon: const Icon(Icons.lock_rounded),
+            label: const Text('Modifier le mot de passe'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warning,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDangerButton(
+      {required IconData icon,
+      required String label,
+      required VoidCallback onTap}) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon),
+        label: Text(label),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.error,
+          side: const BorderSide(color: AppColors.error),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmLogout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Déconnexion',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Voulez-vous vraiment vous déconnecter ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error, foregroundColor: Colors.white),
+            child: const Text('Déconnecter'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true && mounted) {
+      await _authService.signOut();
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
+      }
+    }
   }
 }
 
@@ -566,10 +738,10 @@ class _SectionTitle extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: Text(
         title,
-        style: TextStyle(
-          fontSize: 16,
+        style: const TextStyle(
+          fontSize: 15,
           fontWeight: FontWeight.bold,
-          color: Colors.blue.shade800,
+          color: AppColors.textPrimary,
         ),
       ),
     );
